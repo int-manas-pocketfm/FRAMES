@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shot Generation Pipeline</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: #f0f2f5;
+  color: #1a202c;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+header {
+  padding: 12px 24px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+header h1 { font-size: 15px; font-weight: 700; }
+header span { font-size: 12px; color: #a0aec0; margin-left: auto; }
+
+.stage-nav {
+  display: flex;
+  background: #fff;
+  border-bottom: 2px solid #e2e8f0;
+  padding: 0 24px;
+  flex-shrink: 0;
+}
+.stage-tab {
+  padding: 10px 22px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #a0aec0;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  transition: color .15s, border-color .15s;
+}
+.stage-tab.active { color: #2d3748; border-bottom-color: #3182ce; }
+.stage-tab:hover:not(.active) { color: #4a5568; }
+
+.main { flex: 1; overflow: hidden; position: relative; }
+.stage-view { display: none; position: absolute; inset: 0; }
+.stage-view.active { display: grid; grid-template-columns: 340px 1fr; }
+
+.coming-soon {
+  grid-column: 1/-1;
+  display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px;
+  background: #f7f8fa; color: #a0aec0;
+}
+.coming-soon h2 { font-size: 17px; font-weight: 600; color: #4a5568; }
+.coming-soon p  { font-size: 13px; }
+
+/* Left panel */
+.panel {
+  padding: 16px 15px;
+  background: #fff;
+  border-right: 1px solid #e2e8f0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.fl { display: block; font-size: 11px; font-weight: 700; color: #718096;
+      text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+
+input[type="text"], input[type="number"], textarea, select {
+  width: 100%; padding: 8px 10px;
+  background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 6px;
+  color: #1a202c; font-size: 13px; outline: none; font-family: inherit;
+  transition: border-color .15s, box-shadow .15s;
+}
+input:focus, textarea:focus, select:focus {
+  border-color: #4299e1; box-shadow: 0 0 0 3px rgba(66,153,225,.15);
+}
+textarea { resize: vertical; min-height: 100px; }
+select { cursor: pointer; }
+
+/* Drop zone */
+.drop-zone {
+  border: 2px dashed #cbd5e0; border-radius: 8px; padding: 16px;
+  text-align: center; cursor: pointer; position: relative; background: #f7fafc;
+  transition: border-color .15s, background .15s;
+}
+.drop-zone:hover, .drop-zone.drag-over { border-color: #4299e1; background: #ebf8ff; }
+.drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.drop-zone .dz-icon { font-size: 22px; margin-bottom: 3px; }
+.drop-zone .dz-hint { font-size: 12px; color: #a0aec0; }
+.drop-zone .dz-hint b { color: #4299e1; }
+
+.file-tag {
+  display: inline-block; padding: 2px 8px; background: #edf2f7;
+  border-radius: 4px; font-size: 11px; color: #4a5568; margin: 2px; border: 1px solid #e2e8f0;
+}
+
+/* Toggle buttons */
+.toggle-row {
+  display: flex; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; margin-bottom: 8px;
+}
+.toggle-row button {
+  flex: 1; padding: 6px; font-size: 12px; font-weight: 600;
+  background: #f7fafc; border: none; color: #a0aec0; cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.toggle-row button.active { background: #3182ce; color: #fff; }
+
+/* Reference rows */
+.ref-row {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 9px; background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 4px;
+}
+.ref-row .ref-lbl { font-size: 11px; font-weight: 600; color: #4a5568; flex: 1; white-space: nowrap; }
+.ref-row input[type="file"] { display: none; }
+.ref-choose {
+  padding: 3px 9px; font-size: 11px; background: #ebf8ff; border: 1px solid #bee3f8;
+  border-radius: 4px; color: #2b6cb0; cursor: pointer; white-space: nowrap; transition: background .15s;
+}
+.ref-choose:hover { background: #bee3f8; }
+.ref-fname { font-size: 10px; color: #a0aec0; width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+
+/* DB status badges */
+.db-badge {
+  display: inline-block; padding: 2px 7px; border-radius: 10px;
+  font-size: 10px; font-weight: 600; margin-right: 4px; margin-top: 2px;
+}
+.db-badge.ok  { background: #c6f6d5; color: #276749; }
+.db-badge.miss { background: #fed7d7; color: #9b2c2c; }
+
+/* Radio */
+.radio-group { display: flex; flex-direction: column; gap: 5px; }
+.radio-item {
+  display: flex; align-items: flex-start; gap: 9px; padding: 7px 11px;
+  border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer;
+  background: #f7fafc; transition: border-color .15s, background .15s;
+}
+.radio-item:has(input:checked) { border-color: #4299e1; background: #ebf8ff; }
+.radio-item input[type="radio"] { margin-top: 2px; accent-color: #3182ce; }
+.radio-item .rl { flex: 1; }
+.radio-item .rl strong { font-size: 13px; display: block; color: #2d3748; }
+.radio-item .rl small  { font-size: 11px; color: #a0aec0; }
+
+#s1-episode-input { margin-top: 6px; display: none; }
+
+.workers-row { display: flex; align-items: center; gap: 10px; }
+.workers-row input { width: 68px; }
+.workers-row span { font-size: 12px; color: #a0aec0; }
+
+.run-btn {
+  width: 100%; padding: 10px; background: #3182ce; border: none; border-radius: 8px;
+  color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: background .15s, opacity .15s; box-shadow: 0 1px 3px rgba(49,130,206,.3);
+}
+.run-btn:hover:not(:disabled) { background: #2b6cb0; }
+.run-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.status-msg { font-size: 12px; text-align: center; min-height: 16px; color: #a0aec0; }
+.status-msg.err { color: #e53e3e; }
+.status-msg.ok  { color: #38a169; }
+
+.divider { border: none; border-top: 1px solid #e2e8f0; }
+
+/* Save-to-DB section */
+.save-db-row { display: flex; gap: 8px; align-items: flex-start; }
+.save-db-row input { flex: 1; }
+.save-db-btn {
+  padding: 8px 14px; background: #f0fff4; border: 1px solid #9ae6b4; border-radius: 6px;
+  color: #276749; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  transition: background .15s;
+}
+.save-db-btn:hover:not(:disabled) { background: #c6f6d5; }
+.save-db-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Right panel */
+.right { display: flex; flex-direction: column; overflow: hidden; background: #f7f8fa; }
+
+.right-tabs {
+  display: flex; border-bottom: 1px solid #e2e8f0; padding: 0 20px;
+  gap: 2px; background: #fff; flex-shrink: 0;
+}
+.tab-btn {
+  padding: 10px 16px; font-size: 13px; font-weight: 500; color: #a0aec0;
+  background: none; border: none; border-bottom: 2px solid transparent;
+  cursor: pointer; transition: color .15s, border-color .15s;
+}
+.tab-btn.active { color: #2d3748; border-bottom-color: #3182ce; }
+
+.tab-pane { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+.tab-pane.active { display: flex; }
+
+.log-el {
+  flex: 1; padding: 14px 18px; overflow-y: auto;
+  font-family: 'Consolas', 'Fira Code', monospace; font-size: 12.5px;
+  line-height: 1.7; color: #4a5568; white-space: pre-wrap; word-break: break-all; background: #f7f8fa;
+}
+.log-el .line-ok   { color: #276749; }
+.log-el .line-err  { color: #c53030; }
+.log-el .line-warn { color: #975a16; }
+.log-el .line-info { color: #2b6cb0; font-weight: 600; }
+
+.files-content { padding: 20px; overflow-y: auto; flex: 1; }
+.file-section { margin-bottom: 20px; }
+.file-section h4 {
+  font-size: 11px; color: #a0aec0; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .07em; margin-bottom: 8px;
+}
+.file-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 14px; background: #fff; border: 1px solid #e2e8f0;
+  border-radius: 7px; margin-bottom: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.04);
+}
+.file-row .fname { font-size: 13px; color: #2d3748; font-family: monospace; }
+.dl-btn {
+  padding: 4px 12px; background: #ebf8ff; border: 1px solid #bee3f8;
+  border-radius: 4px; color: #2b6cb0; font-size: 12px; cursor: pointer;
+  text-decoration: none; transition: background .15s;
+}
+.dl-btn:hover { background: #bee3f8; }
+
+.empty-msg { font-size: 13px; color: #cbd5e0; text-align: center; padding: 40px 0; }
+
+/* Progress bar */
+.progress-box { padding: 14px 16px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 18px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.progress-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.progress-label { font-size: 13px; font-weight: 600; color: #2d3748; }
+.progress-eta { font-size: 11px; color: #718096; font-family: monospace; }
+.progress-bar { height: 8px; background: #edf2f7; border-radius: 4px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, #3182ce, #63b3ed); transition: width .5s ease; }
+.progress-stage { margin-top: 8px; font-size: 11px; color: #4a5568; font-style: italic; }
+
+/* Token bar */
+.token-bar {
+  display: flex; align-items: center; padding: 0 20px; height: 38px;
+  background: #fff; border-top: 1px solid #e2e8f0; flex-shrink: 0;
+}
+.token-bar .tb-label {
+  color: #a0aec0; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; font-size: 10px; margin-right: 14px;
+}
+.token-bar .tb-item {
+  display: flex; align-items: center; gap: 5px;
+  padding: 0 14px; border-right: 1px solid #e2e8f0; height: 100%;
+}
+.token-bar .tb-item:last-child { border-right: none; }
+.token-bar .tb-key { color: #a0aec0; font-size: 11px; }
+.token-bar .tb-val { color: #2d3748; font-weight: 700; font-family: monospace; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Shot Generation Pipeline</h1>
+  <span>Argus &middot; <span id="hdr-model">loading...</span></span>
+</header>
+
+<nav class="stage-nav">
+  <button class="stage-tab active" data-stage="stage1-view">Stage 1 &mdash; Reference Files</button>
+  <button class="stage-tab"        data-stage="stage2-view">Stage 2 &mdash; Shot Breakdown</button>
+  <button class="stage-tab"        data-stage="stage3-view">Stage 3 &mdash; Image Generation</button>
+</nav>
+
+<div class="main">
+
+  <!-- ══════════════════════════ Stage 1 ══ -->
+  <div class="stage-view active" id="stage1-view">
+
+    <div class="panel">
+      <div>
+        <span class="fl">Episode Scripts</span>
+        <div class="drop-zone" id="s1-drop">
+          <input type="file" id="s1-file-input" multiple accept=".md,.docx,.txt,.fountain">
+          <div class="dz-icon">📂</div>
+          <div class="dz-hint">Drag &amp; drop or <b>browse</b> &mdash; multiple files OK<br>.md &middot; .docx &middot; .txt &middot; .fountain</div>
+        </div>
+        <div id="s1-file-list" style="margin-top:8px"></div>
+      </div>
+
+      <div>
+        <span class="fl">Run Mode</span>
+        <div class="radio-group">
+          <label class="radio-item">
+            <input type="radio" name="s1-mode" value="full" checked>
+            <div class="rl"><strong>Full</strong><small>Episode details + all 3 show-level files</small></div>
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="s1-mode" value="show-level">
+            <div class="rl"><strong>Show-level only</strong><small>Tone Bible, Character Canvas, Location Reference</small></div>
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="s1-mode" value="all-episodes">
+            <div class="rl"><strong>Episode details only</strong><small>One detail file per script</small></div>
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="s1-mode" value="episode">
+            <div class="rl"><strong>Single episode</strong><small>Generate detail for one episode</small></div>
+          </label>
+        </div>
+        <div id="s1-episode-input">
+          <input type="text" id="s1-episode-name" placeholder="e.g. ep001.md">
+        </div>
+      </div>
+
+      <div>
+        <span class="fl">Parallel Workers</span>
+        <div class="workers-row">
+          <input type="number" id="s1-workers" value="3" min="1" max="10">
+          <span>concurrent episode calls</span>
+        </div>
+      </div>
+
+      <button class="run-btn" id="s1-run-btn">&#9654;&nbsp; Run Stage 1</button>
+      <div class="status-msg" id="s1-status"></div>
+    </div>
+
+    <div class="right">
+      <div class="right-tabs">
+        <button class="tab-btn active" data-tab="s1-log-pane">Live Log</button>
+        <button class="tab-btn"        data-tab="s1-files-pane">Output Files</button>
+      </div>
+      <div class="tab-pane active" id="s1-log-pane">
+        <div class="log-el" id="s1-log"><span style="color:#cbd5e0">Waiting for run&hellip;</span></div>
+      </div>
+      <div class="tab-pane" id="s1-files-pane">
+        <div class="files-content" id="s1-files-content">
+          <p class="empty-msg">No files yet &mdash; run Stage 1 first.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════ Stage 2 ══ -->
+  <div class="stage-view" id="stage2-view">
+
+    <div class="panel">
+
+      <div>
+        <span class="fl">Script</span>
+        <div class="toggle-row">
+          <button class="active" id="s2-paste-btn" type="button">Paste text</button>
+          <button id="s2-upload-btn" type="button">Upload file</button>
+        </div>
+        <div id="s2-text-wrap">
+          <textarea id="s2-script-text" placeholder="Paste your episode script here&hellip;" rows="5"></textarea>
+        </div>
+        <div id="s2-file-wrap" style="display:none">
+          <div class="drop-zone" id="s2-drop">
+            <input type="file" id="s2-file-input" multiple accept=".md,.docx,.txt,.fountain">
+            <div class="dz-icon">📄</div>
+            <div class="dz-hint">Drag &amp; drop or <b>browse</b> &mdash; multiple OK<br>.md &middot; .txt &middot; .fountain</div>
+          </div>
+          <div id="s2-file-list" style="margin-top:6px"></div>
+        </div>
+      </div>
+
+      <div>
+        <span class="fl">Episode Name <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:#a0aec0">&nbsp;used when pasting / single file</span></span>
+        <input type="text" id="s2-episode-name" placeholder="e.g. Episode 5 — The Trial">
+        <div id="s2-multi-info" style="display:none;margin-top:6px;padding:7px 10px;background:#ebf8ff;border:1px solid #bee3f8;border-radius:6px;font-size:11px;color:#2b6cb0"></div>
+      </div>
+
+      <!-- Reference files: DB or Upload -->
+      <div>
+        <span class="fl">Reference Files
+          <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:#a0aec0">&nbsp;optional</span>
+        </span>
+        <div class="toggle-row">
+          <button class="active" id="s2-src-db-btn"     type="button">From Database</button>
+          <button                id="s2-src-upload-btn" type="button">Upload Files</button>
+        </div>
+
+        <!-- DB source -->
+        <div id="s2-db-panel">
+          <select id="s2-show-select">
+            <option value="">Loading shows&hellip;</option>
+          </select>
+          <div id="s2-db-badges" style="margin-top:6px"></div>
+          <div id="s2-db-hint" style="margin-top:4px;font-size:10px;color:#a0aec0">Episode details auto-match by filename when processing multiple scripts.</div>
+        </div>
+
+        <!-- Upload source -->
+        <div id="s2-upload-panel" style="display:none">
+          <div class="ref-row">
+            <span class="ref-lbl">Show Tone Bible</span>
+            <input type="file" id="s2-ref-tone" accept=".md,.docx,.txt" multiple>
+            <button class="ref-choose" onclick="document.getElementById('s2-ref-tone').click()">Choose</button>
+            <span class="ref-fname" id="s2-ref-tone-name">none</span>
+          </div>
+          <div class="ref-row">
+            <span class="ref-lbl">Character Canvas</span>
+            <input type="file" id="s2-ref-char" accept=".md,.docx,.txt" multiple>
+            <button class="ref-choose" onclick="document.getElementById('s2-ref-char').click()">Choose</button>
+            <span class="ref-fname" id="s2-ref-char-name">none</span>
+          </div>
+          <div class="ref-row">
+            <span class="ref-lbl">Location Reference</span>
+            <input type="file" id="s2-ref-loc" accept=".md,.docx,.txt" multiple>
+            <button class="ref-choose" onclick="document.getElementById('s2-ref-loc').click()">Choose</button>
+            <span class="ref-fname" id="s2-ref-loc-name">none</span>
+          </div>
+          <div class="ref-row">
+            <span class="ref-lbl">Episode Detail</span>
+            <input type="file" id="s2-ref-ep" accept=".md,.docx,.txt" multiple>
+            <button class="ref-choose" onclick="document.getElementById('s2-ref-ep').click()">Choose</button>
+            <span class="ref-fname" id="s2-ref-ep-name">none</span>
+          </div>
+        </div>
+      </div>
+
+      <button class="run-btn" id="s2-run-btn">&#9654;&nbsp; Run Stage 2</button>
+      <div class="status-msg" id="s2-status"></div>
+
+    </div>
+
+    <div class="right">
+      <div class="right-tabs">
+        <button class="tab-btn active" data-tab="s2-log-pane">Live Log</button>
+        <button class="tab-btn"        data-tab="s2-files-pane">Output Files</button>
+      </div>
+      <div class="tab-pane active" id="s2-log-pane">
+        <div class="log-el" id="s2-log"><span style="color:#cbd5e0">Waiting for run&hellip;</span></div>
+      </div>
+      <div class="tab-pane" id="s2-files-pane">
+        <div class="files-content" id="s2-files-content">
+          <p class="empty-msg">No output yet &mdash; run Stage 2 first.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════ Stage 3 ══ -->
+  <div class="stage-view" id="stage3-view">
+    <div class="coming-soon">
+      <h2>Stage 3 &mdash; Image Generation</h2>
+      <p>Coming soon.</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="token-bar">
+  <span class="tb-label">Tokens</span>
+  <div class="tb-item"><span class="tb-key">Input</span><span class="tb-val" id="tok-input">&mdash;</span></div>
+  <div class="tb-item"><span class="tb-key">Output</span><span class="tb-val" id="tok-output">&mdash;</span></div>
+  <div class="tb-item"><span class="tb-key">Total</span><span class="tb-val" id="tok-total">&mdash;</span></div>
+  <div class="tb-item"><span class="tb-key">API Calls</span><span class="tb-val" id="tok-calls">&mdash;</span></div>
+</div>
+
+<script>
+// ── Model name ────────────────────────────────────────────────────────────────
+(async () => {
+  try {
+    const r = await fetch('/api/config');
+    document.getElementById('hdr-model').textContent = (await r.json()).model || 'unknown';
+  } catch (_) { document.getElementById('hdr-model').textContent = 'unknown'; }
+})();
+
+// ── Stage tabs ────────────────────────────────────────────────────────────────
+document.querySelectorAll('.stage-tab').forEach(btn => btn.addEventListener('click', () => {
+  document.querySelectorAll('.stage-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.stage-view').forEach(v => v.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(btn.dataset.stage).classList.add('active');
+}));
+
+// ── Right-panel tabs ──────────────────────────────────────────────────────────
+document.querySelectorAll('.right-tabs .tab-btn').forEach(btn => btn.addEventListener('click', () => {
+  const panel = btn.closest('.right');
+  panel.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  panel.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(btn.dataset.tab).classList.add('active');
+}));
+
+// ── Shared helpers ────────────────────────────────────────────────────────────
+const fmt = n => Number(n).toLocaleString();
+
+function updateTokenBar(t) {
+  if (!t) return;
+  document.getElementById('tok-input').textContent  = fmt(t.input);
+  document.getElementById('tok-output').textContent = fmt(t.output);
+  document.getElementById('tok-total').textContent  = fmt(t.input + t.output);
+  document.getElementById('tok-calls').textContent  = t.calls;
+}
+
+function startPoll(jobId, onStatus) {
+  const tick = async () => {
+    try {
+      const d = await (await fetch(`/api/status/${jobId}`)).json();
+      updateTokenBar(d.tokens);
+      if (onStatus) onStatus(d);
+    } catch(_) {}
+  };
+  tick(); // immediate first tick
+  return setInterval(tick, 3000);
+}
+
+function fmtSec(s) {
+  if (s == null || s < 0) return '—';
+  if (s < 60)   return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`;
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return `${h}h ${m}m`;
+}
+
+function renderProgress(containerEl, progress, outputs, renderOutputRow) {
+  if (!progress || !progress.total) { containerEl.innerHTML = ''; return; }
+  const done = progress.completed || 0;
+  const total = progress.total;
+  const pct = total ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  const eta = progress.eta_sec != null ? fmtSec(progress.eta_sec) : 'calculating…';
+  const elapsed = fmtSec(progress.elapsed_sec || 0);
+  const stage = progress.stage || '';
+
+  let html = `<div class="progress-box">
+    <div class="progress-row">
+      <span class="progress-label">${done}/${total} ${done === total ? 'complete' : 'processed'}</span>
+      <span class="progress-eta">Elapsed ${elapsed} · ETA ${eta}</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+    ${stage ? `<div class="progress-stage">${stage}</div>` : ''}
+  </div>`;
+
+  if (outputs && outputs.length && renderOutputRow) {
+    html += `<div class="file-section"><h4>Completed (${outputs.length})</h4>`;
+    outputs.forEach(name => { html += renderOutputRow(name); });
+    html += '</div>';
+  }
+  containerEl.innerHTML = html;
+}
+
+function logLine(el, text) {
+  const span = document.createElement('span');
+  const t = text.toLowerCase();
+  if      (t.includes('  ok') || t.startsWith('ok'))                        span.className = 'line-ok';
+  else if (t.includes('  x ') || t.includes('[error]') || t.includes('failed')) span.className = 'line-err';
+  else if (t.includes('!!') || t.includes('warning'))                       span.className = 'line-warn';
+  else if (t.startsWith('=') || t.startsWith('--') || t.includes('stage')) span.className = 'line-info';
+  span.textContent = text + '\n';
+  el.appendChild(span);
+  el.scrollTop = el.scrollHeight;
+}
+
+function switchTab(rightEl, tabId) {
+  rightEl.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  rightEl.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  rightEl.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
+  document.getElementById(tabId).classList.add('active');
+}
+
+function setStatus(el, msg, type) {
+  el.textContent = msg;
+  el.className = 'status-msg' + (type ? ' ' + type : '');
+}
+
+function wireDropZone(dropEl, inputEl, listEl, multi) {
+  inputEl.addEventListener('change', () => {
+    const files = Array.from(inputEl.files);
+    listEl.innerHTML = files.map(f => `<span class="file-tag">${f.name}</span>`).join('');
+    return files;
+  });
+  dropEl.addEventListener('dragover', e => { e.preventDefault(); dropEl.classList.add('drag-over'); });
+  dropEl.addEventListener('dragleave', () => dropEl.classList.remove('drag-over'));
+  dropEl.addEventListener('drop', e => {
+    e.preventDefault(); dropEl.classList.remove('drag-over');
+    const files = Array.from(e.dataTransfer.files);
+    listEl.innerHTML = files.map(f => `<span class="file-tag">${f.name}</span>`).join('');
+    try { const dt = new DataTransfer(); files.forEach(f => dt.items.add(f)); inputEl.files = dt.files; } catch(_) {}
+  });
+}
+
+// ═══════════════════════════════════════ Stage 1 ══════════════════════════════
+const s1LogEl = document.getElementById('s1-log');
+const s1RunBtn = document.getElementById('s1-run-btn');
+const s1StatusEl = document.getElementById('s1-status');
+let s1Poll = null;
+let s1JobId = null;
+
+wireDropZone(
+  document.getElementById('s1-drop'),
+  document.getElementById('s1-file-input'),
+  document.getElementById('s1-file-list'), true
+);
+
+document.querySelectorAll('input[name="s1-mode"]').forEach(r => r.addEventListener('change', () => {
+  document.getElementById('s1-episode-input').style.display = r.value === 'episode' ? 'block' : 'none';
+}));
+
+function s1RenderFiles(jobId, files) {
+  const el = document.getElementById('s1-files-content');
+  if (!files || !files.length) { el.innerHTML = '<p class="empty-msg">No output files found.</p>'; return; }
+
+  const groups = {};
+  files.forEach(f => (groups[f.subfolder] = groups[f.subfolder] || []).push(f));
+  let html = '';
+  for (const [sub, items] of Object.entries(groups)) {
+    html += `<div class="file-section"><h4>${sub}</h4>`;
+    items.forEach(f => {
+      html += `<div class="file-row"><span class="fname">${f.name}</span>
+        <a class="dl-btn" href="/api/stage1/download/${jobId}/${encodeURIComponent(f.name)}" download="${f.name}">Download</a></div>`;
+    });
+    html += '</div>';
+  }
+
+  // Save to database section
+  html += `<hr class="divider" style="margin:16px 0">
+  <div style="margin-bottom:6px"><span class="fl" style="margin:0">Save to Database</span></div>
+  <div class="save-db-row">
+    <input type="text" id="s1-show-name" placeholder="Show name — e.g. GDA Season 1">
+    <button class="save-db-btn" id="s1-save-btn">Save</button>
+  </div>
+  <div class="status-msg" id="s1-save-status" style="margin-top:4px"></div>`;
+
+  el.innerHTML = html;
+
+  document.getElementById('s1-save-btn').addEventListener('click', async () => {
+    const name = document.getElementById('s1-show-name').value.trim();
+    const saveStatus = document.getElementById('s1-save-status');
+    const saveBtn = document.getElementById('s1-save-btn');
+    if (!name) { setStatus(saveStatus, 'Enter a show name.', 'err'); return; }
+    saveBtn.disabled = true;
+    setStatus(saveStatus, 'Saving…');
+    try {
+      const r = await fetch('/api/db/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: jobId, show_name: name }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setStatus(saveStatus, d.error || 'Save failed', 'err'); saveBtn.disabled = false; return; }
+      setStatus(saveStatus, `Saved — ${d.files_saved} file(s) stored under "${d.show_name}"`, 'ok');
+      loadShowsDropdown(); // refresh Stage 2 dropdown
+    } catch(e) { setStatus(saveStatus, 'Network error', 'err'); }
+    saveBtn.disabled = false;
+  });
+}
+
+s1RunBtn.addEventListener('click', async () => {
+  const mode    = document.querySelector('input[name="s1-mode"]:checked').value;
+  const workers = document.getElementById('s1-workers').value;
+  const episode = document.getElementById('s1-episode-name').value.trim();
+  const files   = Array.from(document.getElementById('s1-file-input').files);
+
+  if (!files.length)               { setStatus(s1StatusEl, 'Upload at least one script.', 'err'); return; }
+  if (mode === 'episode' && !episode) { setStatus(s1StatusEl, 'Enter the episode filename.', 'err'); return; }
+
+  const fd = new FormData();
+  fd.append('mode', mode); fd.append('workers', workers);
+  if (mode === 'episode') fd.append('episode', episode);
+  files.forEach(f => fd.append('scripts', f));
+
+  s1RunBtn.disabled = true;
+  setStatus(s1StatusEl, 'Starting…');
+  s1LogEl.innerHTML = '';
+  logLine(s1LogEl, 'Uploading scripts and starting pipeline…');
+
+  const s1Right = document.getElementById('stage1-view').querySelector('.right');
+  switchTab(s1Right, 's1-log-pane');
+
+  let jobId;
+  try {
+    const res = await fetch('/api/stage1/run', { method: 'POST', body: fd });
+    const d = await res.json();
+    if (!res.ok) { setStatus(s1StatusEl, d.error || 'Server error', 'err'); s1RunBtn.disabled = false; return; }
+    jobId = d.job_id; s1JobId = jobId;
+  } catch(e) { setStatus(s1StatusEl, 'Network error: ' + e.message, 'err'); s1RunBtn.disabled = false; return; }
+
+  setStatus(s1StatusEl, 'Running…');
+  if (s1Poll) clearInterval(s1Poll);
+  const s1FilesEl = document.getElementById('s1-files-content');
+  s1Poll = startPoll(jobId, d => {
+    if (d.status === 'running' && d.progress && d.progress.total) {
+      renderProgress(s1FilesEl, d.progress, null, null);
+    }
+  });
+
+  const es = new EventSource(`/api/stream/${jobId}`);
+  es.onmessage = e => logLine(s1LogEl, e.data);
+  es.addEventListener('done', async () => {
+    es.close(); s1RunBtn.disabled = false;
+    clearInterval(s1Poll); s1Poll = null;
+    try {
+      const r = await fetch(`/api/status/${jobId}`);
+      const d = await r.json();
+      updateTokenBar(d.tokens);
+      if (d.status === 'done') {
+        setStatus(s1StatusEl, `Done — ${d.files.length} file(s) generated.`, 'ok');
+        s1RenderFiles(jobId, d.files);
+        switchTab(s1Right, 's1-files-pane');
+      } else {
+        setStatus(s1StatusEl, 'Pipeline failed — check the log.', 'err');
+      }
+    } catch(_) { setStatus(s1StatusEl, 'Could not fetch results.', 'err'); }
+  });
+  es.onerror = () => { es.close(); s1RunBtn.disabled = false; setStatus(s1StatusEl, 'Stream error.', 'err'); };
+});
+
+// ═══════════════════════════════════════ Stage 2 ══════════════════════════════
+const s2LogEl    = document.getElementById('s2-log');
+const s2RunBtn   = document.getElementById('s2-run-btn');
+const s2StatusEl = document.getElementById('s2-status');
+let s2Poll = null;
+
+// Script toggle
+const s2PasteBtn  = document.getElementById('s2-paste-btn');
+const s2UploadBtn = document.getElementById('s2-upload-btn');
+s2PasteBtn.addEventListener('click', () => {
+  s2PasteBtn.classList.add('active'); s2UploadBtn.classList.remove('active');
+  document.getElementById('s2-text-wrap').style.display = 'block';
+  document.getElementById('s2-file-wrap').style.display = 'none';
+});
+s2UploadBtn.addEventListener('click', () => {
+  s2UploadBtn.classList.add('active'); s2PasteBtn.classList.remove('active');
+  document.getElementById('s2-file-wrap').style.display = 'block';
+  document.getElementById('s2-text-wrap').style.display = 'none';
+});
+
+wireDropZone(
+  document.getElementById('s2-drop'),
+  document.getElementById('s2-file-input'),
+  document.getElementById('s2-file-list'), true
+);
+
+// Reference source toggle
+const s2SrcDbBtn     = document.getElementById('s2-src-db-btn');
+const s2SrcUploadBtn = document.getElementById('s2-src-upload-btn');
+const s2DbPanel      = document.getElementById('s2-db-panel');
+const s2UploadPanel  = document.getElementById('s2-upload-panel');
+
+s2SrcDbBtn.addEventListener('click', () => {
+  s2SrcDbBtn.classList.add('active'); s2SrcUploadBtn.classList.remove('active');
+  s2DbPanel.style.display = 'block'; s2UploadPanel.style.display = 'none';
+});
+s2SrcUploadBtn.addEventListener('click', () => {
+  s2SrcUploadBtn.classList.add('active'); s2SrcDbBtn.classList.remove('active');
+  s2UploadPanel.style.display = 'block'; s2DbPanel.style.display = 'none';
+});
+
+// Ref upload file name labels
+const refCfg = [
+  { id: 's2-ref-tone', nameId: 's2-ref-tone-name', key: 'show_tone_bible' },
+  { id: 's2-ref-char', nameId: 's2-ref-char-name', key: 'character_canvas' },
+  { id: 's2-ref-loc',  nameId: 's2-ref-loc-name',  key: 'location_reference' },
+  { id: 's2-ref-ep',   nameId: 's2-ref-ep-name',   key: 'episode_detail' },
+];
+refCfg.forEach(({ id, nameId }) => {
+  document.getElementById(id).addEventListener('change', function() {
+    const names = Array.from(this.files).map(f => f.name).join(', ');
+    document.getElementById(nameId).textContent = names || 'none';
+  });
+});
+
+// DB data: shared refs (keyed by type) + list of all episode_detail files for matching
+let s2DbFiles    = {};   // { show_tone_bible, character_canvas, location_reference } → content
+let s2DbEpisodes = [];   // [ { filename, content }, ... ] — all matched per-script server-side
+
+async function loadShowsDropdown() {
+  const sel = document.getElementById('s2-show-select');
+  try {
+    const shows = await (await fetch('/api/db/shows')).json();
+    if (shows.error) { sel.innerHTML = `<option value="">DB error: ${shows.error}</option>`; return; }
+    if (!shows.length) { sel.innerHTML = '<option value="">No shows in database yet</option>'; return; }
+    sel.innerHTML = '<option value="">Select a show…</option>' +
+      shows.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  } catch(_) { sel.innerHTML = '<option value="">Could not reach database</option>'; }
+}
+
+document.getElementById('s2-show-select').addEventListener('change', async function() {
+  const showId = this.value;
+  const badges = document.getElementById('s2-db-badges');
+  s2DbFiles = {}; s2DbEpisodes = []; badges.innerHTML = '';
+
+  if (!showId) return;
+
+  badges.innerHTML = '<span style="font-size:11px;color:#a0aec0">Loading files…</span>';
+  try {
+    const files = await (await fetch(`/api/db/shows/${showId}/files`)).json();
+    if (files.error) { badges.innerHTML = `<span style="font-size:11px;color:#e53e3e">${files.error}</span>`; return; }
+
+    const typeLabels = { show_tone_bible: 'Tone Bible', character_canvas: 'Characters', location_reference: 'Locations' };
+    files.forEach(f => {
+      if (f.file_type === 'episode_detail') {
+        s2DbEpisodes.push({ filename: f.filename, content: f.content });
+      } else if (typeLabels[f.file_type]) {
+        s2DbFiles[f.file_type] = f.content;
+      }
+    });
+
+    const keys = ['show_tone_bible', 'character_canvas', 'location_reference'];
+    badges.innerHTML = keys.map(k =>
+      `<span class="db-badge ${s2DbFiles[k] ? 'ok' : 'miss'}">${typeLabels[k]}</span>`
+    ).join('') + (s2DbEpisodes.length
+        ? `<span class="db-badge ok">${s2DbEpisodes.length} episode detail(s)</span>`
+        : '<span class="db-badge miss">No episode details</span>');
+  } catch(e) { badges.innerHTML = `<span style="font-size:11px;color:#e53e3e">Error: ${e.message}</span>`; }
+});
+
+// Multi-episode preview on script input change
+function updateMultiInfo() {
+  const info = document.getElementById('s2-multi-info');
+  const isPaste = s2PasteBtn.classList.contains('active');
+  if (isPaste) { info.style.display = 'none'; return; }
+  const files = Array.from(document.getElementById('s2-file-input').files);
+  if (files.length > 1) {
+    const names = files.map(f => f.name.replace(/\.[^.]+$/, '')).join(', ');
+    info.textContent = `Will process ${files.length} episodes sequentially: ${names}`;
+    info.style.display = 'block';
+  } else {
+    info.style.display = 'none';
+  }
+}
+document.getElementById('s2-file-input').addEventListener('change', updateMultiInfo);
+document.getElementById('s2-drop').addEventListener('drop', () => setTimeout(updateMultiInfo, 50));
+s2PasteBtn.addEventListener('click', updateMultiInfo);
+s2UploadBtn.addEventListener('click', updateMultiInfo);
+
+// Auto-load shows when Stage 2 tab is opened
+document.querySelector('[data-stage="stage2-view"]').addEventListener('click', loadShowsDropdown);
+loadShowsDropdown(); // also load on page init
+
+// Stage 2 run
+s2RunBtn.addEventListener('click', async () => {
+  const isPaste = s2PasteBtn.classList.contains('active');
+  const scriptText = document.getElementById('s2-script-text').value.trim();
+  const scriptFiles = Array.from(document.getElementById('s2-file-input').files);
+  const episodeName = document.getElementById('s2-episode-name').value.trim() || 'episode';
+  const useDb = s2SrcDbBtn.classList.contains('active');
+
+  if (isPaste && !scriptText)        { setStatus(s2StatusEl, 'Paste a script or switch to file upload.', 'err'); return; }
+  if (!isPaste && !scriptFiles.length) { setStatus(s2StatusEl, 'Upload a script file.', 'err'); return; }
+
+  const fd = new FormData();
+  fd.append('mode', 'full');
+  fd.append('episode_name', episodeName);
+
+  if (isPaste) fd.append('script_text', scriptText);
+  else scriptFiles.forEach(f => fd.append('script', f));
+
+  if (useDb) {
+    // Shared refs: one per type
+    const keyMap = { show_tone_bible: 'ref_show_tone_bible', character_canvas: 'ref_character_canvas', location_reference: 'ref_location_reference' };
+    for (const [k, field] of Object.entries(keyMap)) {
+      if (s2DbFiles[k]) fd.append(field, new Blob([s2DbFiles[k]], { type: 'text/plain' }), `${k}.md`);
+    }
+    // All episode_detail files — server matches each to the right script by stem
+    s2DbEpisodes.forEach(e =>
+      fd.append('ref_episode_detail', new Blob([e.content], { type: 'text/plain' }), e.filename)
+    );
+  } else {
+    refCfg.forEach(({ id, key }) => {
+      Array.from(document.getElementById(id).files).forEach(f => fd.append(`ref_${key}`, f));
+    });
+  }
+
+  s2RunBtn.disabled = true;
+  setStatus(s2StatusEl, 'Starting…');
+  s2LogEl.innerHTML = '';
+  logLine(s2LogEl, 'Sending script and starting pipeline…');
+
+  const s2Right = document.getElementById('stage2-view').querySelector('.right');
+  switchTab(s2Right, 's2-log-pane');
+
+  let jobId;
+  try {
+    const res = await fetch('/api/stage2/run', { method: 'POST', body: fd });
+    const d = await res.json();
+    if (!res.ok) { setStatus(s2StatusEl, d.error || 'Server error', 'err'); s2RunBtn.disabled = false; return; }
+    jobId = d.job_id;
+  } catch(e) { setStatus(s2StatusEl, 'Network error: ' + e.message, 'err'); s2RunBtn.disabled = false; return; }
+
+  setStatus(s2StatusEl, 'Running…');
+  if (s2Poll) clearInterval(s2Poll);
+  const s2FilesEl = document.getElementById('s2-files-content');
+  const s2RowRenderer = name => `<div class="file-row"><span class="fname">${name}</span>
+    <a class="dl-btn" href="/api/stage2/download/${jobId}?filename=${encodeURIComponent(name)}" download="${name}">Download</a></div>`;
+  s2Poll = startPoll(jobId, d => {
+    if (d.status === 'running' && d.progress && d.progress.total) {
+      renderProgress(s2FilesEl, d.progress, d.output_files || [], s2RowRenderer);
+    }
+  });
+
+  const es = new EventSource(`/api/stream/${jobId}`);
+  es.onmessage = e => logLine(s2LogEl, e.data);
+  es.addEventListener('done', async () => {
+    es.close(); s2RunBtn.disabled = false;
+    clearInterval(s2Poll); s2Poll = null;
+    try {
+      const r = await fetch(`/api/status/${jobId}`);
+      const d = await r.json();
+      updateTokenBar(d.tokens);
+      if (d.status === 'done') {
+        const outputs = (d.output_files && d.output_files.length) ? d.output_files
+                     : (d.output_file ? [d.output_file] : []);
+        setStatus(s2StatusEl, outputs.length ? `Done — ${outputs.length} Excel file(s) ready.` : 'Done — see log.', 'ok');
+        const el = document.getElementById('s2-files-content');
+        if (outputs.length) {
+          let html = `<div class="file-section"><h4>Shot Breakdowns (${outputs.length})</h4>`;
+          outputs.forEach(name => {
+            html += `<div class="file-row"><span class="fname">${name}</span>
+              <a class="dl-btn" href="/api/stage2/download/${jobId}?filename=${encodeURIComponent(name)}" download="${name}">Download</a></div>`;
+          });
+          html += '</div>';
+          el.innerHTML = html;
+          switchTab(s2Right, 's2-files-pane');
+        } else {
+          el.innerHTML = '<p class="empty-msg">No Excel files — see Live Log for results.</p>';
+        }
+      } else {
+        setStatus(s2StatusEl, 'Pipeline failed — check the log.', 'err');
+      }
+    } catch(_) { setStatus(s2StatusEl, 'Could not fetch results.', 'err'); }
+  });
+  es.onerror = () => { es.close(); s2RunBtn.disabled = false; setStatus(s2StatusEl, 'Stream error.', 'err'); };
+});
+</script>
+</body>
+</html>
