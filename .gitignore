@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+
+workspace/
+__pycache__/
+*.pyc
+*.pyo
+
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
