@@ -55,6 +55,9 @@ WORKSPACE.mkdir(exist_ok=True)
 ARGUS_API_KEY    = os.environ.get("ARGUS_API_KEY", "")
 ARGUS_BASE_URL   = os.environ.get("ARGUS_BASE_URL", "")
 ARGUS_MODEL      = os.environ.get("ARGUS_MODEL", "")
+GEMINI_API_KEY   = os.environ.get("GEMINI_API_KEY", "")
+MADEYE_API_KEY   = os.environ.get("MADEYE_API_KEY", "")
+MADEYE_BASE_URL  = os.environ.get("MADEYE_BASE_URL", "").rstrip("/")
 
 SUPABASE_URL     = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY     = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_ANON_KEY", "")
@@ -575,10 +578,33 @@ Emotional Register: [tone state from show tone file — specific phrase tied to 
 ## How to Trigger the Pipeline
 
 **STAGE 1 — BREAKDOWN** (triggered by pasting a raw script):
-Run all 5 steps internally. Before declaring complete, do a COVERAGE SELF-CHECK:
-- Walk through the script from first paragraph to last
-- Verify every sentence appears in at least one shot's line
-- If you find ANY skipped text, go back and add shots for it
+Run all 5 steps internally. Before declaring complete, execute the SCRIPT COVERAGE AUDIT PROTOCOL below.
+
+---
+
+## SCRIPT COVERAGE AUDIT PROTOCOL — MANDATORY
+
+Before confirming any shot breakdown is complete, you MUST do the following. No exceptions.
+
+**Audit Step 1 — Source Script**: Use ONLY the original script text provided in the user message as your source of truth. Never rely on memory or prior transcription.
+
+**Audit Step 2 — Parse into Beats**: Split the script into every distinct sentence or narrative unit. Each sentence is a beat. Count them. Every clause joined by commas or conjunctions must be fully preserved.
+
+**Audit Step 3 — Check Every Beat**: For each script beat, verify it appears in at least one shot's Line column — either as the full line or as a confirmed sub-sentence split. Every word must be present. Do not use fuzzy matching — verify exact text.
+
+**Audit Step 4 — Check for Duplicates**:
+- Exact duplicates: same Line text on two or more shots — REMOVE the duplicate.
+- Partial duplicates: one shot's Line is a substring of another shot's Line — trim the parent shot's line to only the portion not covered by the child shots.
+
+**Audit Step 5 — Confirm Coverage**: Do NOT say "BREAKDOWN COMPLETE" until Step 3 shows zero genuine missing beats AND Step 4 shows zero unintentional duplicates.
+
+**Common Failure Modes to Avoid**:
+- Auditing the breakdown against itself — will never catch missing lines
+- Merged lines that bundle multiple beats — counts as covered only if ALL sub-beats are present
+- Lines deleted as "duplicates" that were the only coverage of a distinct script beat — always check before deleting
+- Mid-sentence clause dropping — when a sentence has multiple clauses (e.g. "she did X, feeling Y"), EVERY clause must be present in the Line field
+
+---
 
 When complete, output ONLY:
 ```
@@ -839,6 +865,20 @@ def _track_tokens(data: dict):
             jobs[jid]["tokens"]["input"]  += usage.get("prompt_tokens", 0)
             jobs[jid]["tokens"]["output"] += usage.get("completion_tokens", 0)
             jobs[jid]["tokens"]["calls"]  += 1
+
+# Pricing — auto-detect from ARGUS_MODEL
+_MODEL_PRICING = {
+    "opus":     (5.0, 25.0),   # Opus 4.5 / 4.6 / 4.7
+    "sonnet":   (3.0, 15.0),   # Sonnet 4.5 / 4.6
+    "haiku":    (1.0, 5.0),    # Haiku 4.5
+}
+def _detect_pricing():
+    m = ARGUS_MODEL.lower()
+    for key, (inp, out) in _MODEL_PRICING.items():
+        if key in m:
+            return inp, out
+    return 3.0, 15.0  # default to Sonnet pricing
+LLM_INPUT_COST_PER_MTOK, LLM_OUTPUT_COST_PER_MTOK = _detect_pricing()
 
 
 def verify_auth():
@@ -1304,10 +1344,19 @@ def run_stage1_pipeline(job_id: str, job_dir: Path, mode: str, workers: int, epi
             else:                      moved_ep   += 1
         shutil.rmtree(raw_out, ignore_errors=True)
 
+        tok = jobs[job_id]["tokens"]
+        s1_cost = (tok["input"] * LLM_INPUT_COST_PER_MTOK + tok["output"] * LLM_OUTPUT_COST_PER_MTOK) / 1_000_000
+        jobs[job_id]["file_tokens"].append({
+            "name": f"Show-level files ({moved_show})",
+            "input": tok["input"], "output": tok["output"], "calls": tok["calls"],
+            "cost": round(s1_cost, 4),
+        })
         _log(f"\n{'=' * 60}")
         _log("  STAGE 1 COMPLETE")
         _log(f"    -> show level files/  ({moved_show} file(s))")
         _log(f"    -> episode details/   ({moved_ep} file(s))")
+        _log(f"    -> Tokens used: {tok['input']:,} input / {tok['output']:,} output / {tok['calls']} API calls")
+        _log(f"    -> Cost: ${s1_cost:.4f}")
         _log(f"{'=' * 60}\n")
 
         jobs[job_id]["status"] = "done"
@@ -1426,6 +1475,17 @@ MAKE_EXCEL_MSG = (
     "5. Do NOT merge two script sentences into one shot's line field.\n"
     "6. If the script says 'He turned around.' that exact text must appear in a line field somewhere.\n"
     "7. Check: does your output cover the ENTIRE script from first word to last? If not, you missed lines.\n\n"
+    "⚠️⚠️⚠️ LINE-DESCRIPTION COUPLING RULE — MANDATORY:\n"
+    "Each shot row must be written as a COMPLETE UNIT. For every row you output, the `line` and `shot_description` "
+    "MUST describe the SAME visual moment. Never write a batch of lines first and fill descriptions later.\n"
+    "Before outputting each row, verify: does the shot_description match the script text in the line field? "
+    "If the line says 'Yvonne slapped him across the face' but the description says 'Penelope shoves Yvonne' — "
+    "that row is BROKEN. The description drifted to a different scene.\n\n"
+    "⚠️⚠️⚠️ NO GHOST DUPLICATES — MANDATORY:\n"
+    "Every script sentence must appear in EXACTLY ONE shot row. If you realize a block of shots has wrong descriptions, "
+    "you must FIX those existing rows (reuse their shot_number) — do NOT append a corrected copy at the end. "
+    "Appending without removing the original creates ghost duplicates where the same line appears twice "
+    "at different positions in the breakdown.\n\n"
     "Output each batch of 25 shots as a JSON array wrapped in ```json and ``` markers. "
     "Each shot object must have exactly these keys: shot_number (integer), line (string — exact verbatim script text), "
     "shot_size (string), shot_description (string), shot_detail (string), reference (string). "
@@ -1565,9 +1625,12 @@ def _process_one_episode(job_dir: Path, script_text: str, episode_name: str, ref
     if not all_rows:
         raise RuntimeError(f"No shot rows parsed for {episode_name}")
 
-    # ── Word-level coverage verification ─────────────────────────────────────
+    # ── Coverage verification (word-level + sentence-level) ────────────────
     def _norm(t):
         return re.sub(r'[^\w\s]', '', t.lower()).split()
+
+    def _norm_str(t):
+        return " ".join(_norm(t))
 
     def _measure_coverage(rows):
         sw = _norm(script_text)
@@ -1580,7 +1643,6 @@ def _process_one_episode(job_dir: Path, script_text: str, episode_name: str, ref
         sm = SequenceMatcher(None, sw, rw, autojunk=False)
         matched = sum(b.size for b in sm.get_matching_blocks())
         cov = matched / len(sw) * 100
-        # Find gaps via sequential scan
         covered = set()
         ptr = 0
         for r in rows:
@@ -1603,28 +1665,174 @@ def _process_one_episode(job_dir: Path, script_text: str, episode_name: str, ref
             gaps.append((gs, len(sw)))
         return cov, [(s, e) for s, e in gaps if e - s >= 3]
 
+    def _find_rephrased(rows, max_sents=80):
+        all_lines = " ".join(r.get("line", "") for r in rows)
+        all_lines_norm = _norm_str(all_lines)
+        sents = re.split(r'(?<=[.!?…])\s+|\n+', script_text.strip())
+        sents = [s.strip() for s in sents if len(s.strip().split()) >= 3]
+        line_norms = [_norm_str(r.get("line", "")) for r in rows]
+        rephrased = []
+        for sent in sents[:max_sents]:
+            sn = _norm_str(sent)
+            if not sn or len(sn) < 10:
+                continue
+            if sn in all_lines_norm:
+                continue
+            sn_words = set(sn.split())
+            best_overlap = 0
+            best_line = ""
+            best_idx = -1
+            for ri, ln in enumerate(line_norms):
+                if not ln:
+                    continue
+                ln_words = set(ln.split())
+                overlap = len(sn_words & ln_words)
+                score = overlap / max(len(sn_words), 1)
+                if score > best_overlap:
+                    best_overlap = score
+                    best_line = rows[ri].get("line", "")
+                    best_idx = ri
+            if 0.5 < best_overlap < 0.95:
+                rephrased.append({
+                    "original": sent,
+                    "found_as": best_line,
+                    "similarity": best_overlap,
+                })
+        return rephrased[:10]
+
+    def _find_missing_sentences(rows):
+        sents = re.split(r'(?<=[.!?…"\'”’])\s+|\n+', script_text.strip())
+        sents = [s.strip() for s in sents if len(s.strip().split()) >= 3]
+        all_lines_norm = " ".join(_norm_str(r.get("line", "")) for r in rows)
+        all_line_words = set(all_lines_norm.split())
+        missing = []
+        for sent in sents:
+            sn = _norm_str(sent)
+            if not sn or len(sn.split()) < 3:
+                continue
+            if sn in all_lines_norm:
+                continue
+            sn_words = sn.split()
+            found_count = sum(1 for w in sn_words if w in all_line_words)
+            if found_count / max(len(sn_words), 1) < 0.7:
+                missing.append(sent)
+        return missing[:20]
+
+    def _find_truncated_lines(rows):
+        sents = re.split(r'(?<=[.!?…"\'”’])\s+|\n+', script_text.strip())
+        sents = [s.strip() for s in sents if len(s.strip().split()) >= 3]
+        sent_norms = [_norm_str(s) for s in sents]
+        all_lines_norm = " ".join(_norm_str(r.get("line", "")) for r in rows)
+        truncated = []
+        for row in rows:
+            line = row.get("line", "").strip()
+            if not line or len(line.split()) < 3:
+                continue
+            line_norm = _norm_str(line)
+            if not line_norm:
+                continue
+            for si, sent_norm in enumerate(sent_norms):
+                if line_norm in sent_norm and line_norm != sent_norm:
+                    missing_part = sent_norm.replace(line_norm, "", 1).strip()
+                    if len(missing_part.split()) >= 3 and missing_part not in all_lines_norm:
+                        truncated.append({
+                            "shot": row.get("shot_number", "?"),
+                            "line": line,
+                            "full_sentence": sents[si],
+                        })
+                        break
+        return truncated[:10]
+
     script_words = _norm(script_text)
     coverage, big_gaps = _measure_coverage(all_rows)
     _log(f"  Coverage: {coverage:.1f}% of script words in line column")
 
-    for fill_round in range(3):
-        if coverage >= 95 or not big_gaps:
-            break
-        _log(f"  !! Coverage {coverage:.1f}% — fill round {fill_round + 1}, {len(big_gaps)} gap(s)...")
-        gap_texts = []
-        for gi, (gs, ge) in enumerate(big_gaps[:15]):
-            original_chunk = " ".join(script_words[gs:ge])
-            display = f"\"{original_chunk[:150]}\"" if len(original_chunk) <= 150 else f"\"{original_chunk[:150]}...\""
-            gap_texts.append(f"Gap {gi+1} (~{ge-gs} words): {display}")
-            _log(f"    {gap_texts[-1]}")
+    rephrased = _find_rephrased(all_rows)
+    if rephrased:
+        _log(f"  !! {len(rephrased)} line(s) appear REPHRASED (not verbatim)")
+        for rp in rephrased[:5]:
+            _log(f"    Script:  \"{rp['original'][:100]}\"")
+            _log(f"    Found:   \"{rp['found_as'][:100]}\"  ({rp['similarity']:.0%} similar)")
 
-        gap_detail_str = "\n".join(gap_texts)
+    prev_coverage = -1
+    for fill_round in range(3):
+        if coverage == prev_coverage and fill_round >= 1:
+            _log(f"  !! Coverage unchanged at {coverage:.1f}% — stopping fill rounds")
+            break
+        prev_coverage = coverage
+
+        issues = []
+        if big_gaps:
+            _log(f"  !! Coverage {coverage:.1f}% — fill round {fill_round + 1}, {len(big_gaps)} gap(s)...")
+            gap_texts = []
+            for gi, (gs, ge) in enumerate(big_gaps[:10]):
+                original_chunk = " ".join(script_words[gs:ge])
+                display = f"\"{original_chunk[:150]}\"" if len(original_chunk) <= 150 else f"\"{original_chunk[:150]}...\""
+                gap_texts.append(f"Gap {gi+1} (~{ge-gs} words): {display}")
+                _log(f"    {gap_texts[-1]}")
+            issues.append(
+                "MISSING TEXT — the following script sections are NOT in any shot's line field:\n" +
+                "\n".join(gap_texts)
+            )
+
+        if rephrased:
+            _log(f"  !! {len(rephrased)} rephrased line(s) — fix round {fill_round + 1}")
+            rephrase_items = []
+            for rp in rephrased[:5]:
+                rephrase_items.append(
+                    f"WRONG: \"{rp['found_as'][:200]}\"\n"
+                    f"CORRECT (from script): \"{rp['original'][:200]}\""
+                )
+            issues.append(
+                "REPHRASED LINES — the following lines were summarized or reworded instead of copied verbatim:\n" +
+                "\n\n".join(rephrase_items)
+            )
+
+        missing_sents = _find_missing_sentences(all_rows)
+        if missing_sents:
+            _log(f"  !! {len(missing_sents)} script sentence(s) completely missing — fill round {fill_round + 1}")
+            for ms in missing_sents[:5]:
+                _log(f"    - \"{ms[:120]}\"")
+            issues.append(
+                "COMPLETELY MISSING SENTENCES — the following script sentences are not in any shot's Line field. "
+                "You MUST create new shots for each one with the EXACT text from the script:\n" +
+                "\n".join(f'- "{s}"' for s in missing_sents[:10])
+            )
+
+        truncated = _find_truncated_lines(all_rows)
+        if truncated:
+            _log(f"  !! {len(truncated)} truncated line(s) found — fill round {fill_round + 1}")
+            trunc_items = []
+            for t in truncated[:5]:
+                trunc_items.append(
+                    f"Shot {t['shot']}: has \"{t['line'][:150]}\"\n"
+                    f"Full sentence from script: \"{t['full_sentence'][:200]}\""
+                )
+            issues.append(
+                "TRUNCATED LINES — these shots have incomplete script sentences. "
+                "The Line field must contain the FULL sentence, not a fragment:\n" +
+                "\n\n".join(trunc_items)
+            )
+
+        if not issues:
+            break
+
         fill_prompt = (
-            f"⛔ COVERAGE CHECK FAILED (round {fill_round + 1}) — the following script text is MISSING from your shot breakdown.\n\n"
-            f"{gap_detail_str}\n\n"
-            f"Produce shots for EVERY missing section above. The `line` field must contain the EXACT verbatim "
-            f"script text shown in each gap — copy-paste it directly.\n"
-            f"Output as JSON array in ```json blocks. Use shot numbers starting from {len(all_rows) + 1}."
+            f"⛔ SCRIPT COVERAGE AUDIT FAILED (round {fill_round + 1})\n\n"
+            + "\n\n---\n\n".join(issues) +
+            f"\n\n---\n\nRULES:\n"
+            f"1. The `line` field MUST be COPY-PASTED verbatim from the script — every word, every punctuation mark.\n"
+            f"2. Do NOT paraphrase, summarize, shorten, or reword ANY text. Use the EXACT original words.\n"
+            f"3. For missing text: produce new shots with the exact script text.\n"
+            f"4. For rephrased lines: output corrected shots with the EXACT original script text replacing the wrong version.\n"
+            f"5. For truncated lines: output the corrected shot with the FULL sentence — never drop a clause.\n"
+            f"6. Output as JSON array in ```json blocks. Use shot numbers starting from {len(all_rows) + 1} for new shots.\n"
+            f"7. For corrections, reuse the original shot number and include the corrected `line`.\n"
+            f"8. CRITICAL — LINE-DESCRIPTION COUPLING: When correcting or adding a shot, the `shot_description` MUST match "
+            f"the `line` for that same row. Never output a line from one scene with a description from a different scene.\n"
+            f"9. CRITICAL — REPLACE, DO NOT APPEND: If a block of shots had wrong descriptions, output them with their "
+            f"ORIGINAL shot_number so they replace the broken rows. Do NOT create new shot numbers for content that "
+            f"already has a row — that creates ghost duplicates."
         )
         messages.append({"role": "user", "content": fill_prompt})
         fill_resp = call_api_chat(STAGE2_SYSTEM, messages, label=f"{episode_name}:fill-{fill_round+1}")
@@ -1632,29 +1840,170 @@ def _process_one_episode(job_dir: Path, script_text: str, episode_name: str, ref
             messages.append({"role": "assistant", "content": fill_resp})
             fill_rows = parse_shot_rows(fill_resp)
             if fill_rows:
-                all_rows.extend(fill_rows)
+                existing_nums = {r.get("shot_number"): idx for idx, r in enumerate(all_rows)}
+                new_rows = []
+                for fr in fill_rows:
+                    fn = fr.get("shot_number")
+                    if fn in existing_nums:
+                        idx = existing_nums[fn]
+                        for k in ("line", "shot_description", "shot_detail", "shot_size", "reference"):
+                            if fr.get(k):
+                                all_rows[idx][k] = fr[k]
+                        _log(f"  ok  Corrected shot {fn} (line + description replaced together)")
+                    else:
+                        new_rows.append(fr)
+                if new_rows:
+                    all_rows.extend(new_rows)
+                    _log(f"  ok  +{len(new_rows)} new shots — total now {len(all_rows)}")
                 _update_shot_counter(len(all_rows))
-                _log(f"  ok  +{len(fill_rows)} gap-fill shots — total now {len(all_rows)}")
+
         coverage, big_gaps = _measure_coverage(all_rows)
-        _log(f"  Coverage after fill round {fill_round + 1}: {coverage:.1f}%")
+        rephrased = _find_rephrased(all_rows)
+        _log(f"  Coverage after round {fill_round + 1}: {coverage:.1f}%  |  Rephrased: {len(rephrased)}")
 
-    # Re-order all rows by position in original script
-    def _script_pos(row):
-        rw = _norm(row.get("line", ""))
-        if not rw:
-            return len(script_words)
-        target = rw[0]
-        for i, sw in enumerate(script_words):
-            if sw == target:
-                sub = rw[:min(5, len(rw))]
-                window = script_words[i:i + len(sub)]
-                if len(sub) <= 1 or sub == window:
-                    return i
-        return len(script_words)
+    # Re-order rows by scanning through script and greedily matching each row
+    # Handles repeated dialogue correctly: first occurrence matches first row,
+    # second occurrence matches the next unassigned row with that text
+    from collections import defaultdict
+    _MATCH_PFX = 8
+    _row_norms = [_norm(r.get("line", "")) for r in all_rows]
+    _pfx_by_len = defaultdict(lambda: defaultdict(list))
+    for _ri, _rw in enumerate(_row_norms):
+        _kl = min(_MATCH_PFX, len(_rw))
+        if _kl >= 2:
+            _pfx_by_len[_kl][tuple(_rw[:_kl])].append(_ri)
 
-    all_rows.sort(key=_script_pos)
+    _assigned = set()
+    _ordered = []
+    _pos = 0
+    while _pos < len(script_words):
+        _matched = False
+        for _klen in range(min(_MATCH_PFX, len(script_words) - _pos), 1, -1):
+            if _klen not in _pfx_by_len:
+                continue
+            _key = tuple(script_words[_pos:_pos + _klen])
+            if _key in _pfx_by_len[_klen]:
+                for _ri in _pfx_by_len[_klen][_key]:
+                    if _ri not in _assigned:
+                        _assigned.add(_ri)
+                        _ordered.append(all_rows[_ri])
+                        _pos += max(len(_row_norms[_ri]), 1)
+                        _matched = True
+                        break
+            if _matched:
+                break
+        if not _matched:
+            _pos += 1
+
+    for _ri in range(len(all_rows)):
+        if _ri not in _assigned:
+            _ordered.append(all_rows[_ri])
+    all_rows = _ordered
+
+    # ── Duplicate detection and removal ─────────────────────────────────────
+    before_dedup = len(all_rows)
+    seen_lines = {}
+    deduped = []
+    for row in all_rows:
+        norm_line = " ".join(_norm(row.get("line", "")))
+        if not norm_line:
+            continue
+        if norm_line in seen_lines:
+            _log(f"  !!  Removing exact duplicate line (shot {row.get('shot_number', '?')}): \"{row.get('line', '')[:80]}...\"")
+            continue
+        seen_lines[norm_line] = True
+        deduped.append(row)
+
+    # Partial duplicate check: if one line is a substring of another, remove the redundant
+    remove_idxs = set()
+    for i, row_a in enumerate(deduped):
+        if i in remove_idxs:
+            continue
+        norm_a = " ".join(_norm(row_a.get("line", "")))
+        if not norm_a:
+            continue
+        for j, row_b in enumerate(deduped):
+            if i == j or j in remove_idxs:
+                continue
+            norm_b = " ".join(_norm(row_b.get("line", "")))
+            if norm_b and norm_a != norm_b and norm_a in norm_b:
+                remainder = norm_b.replace(norm_a, "", 1).strip()
+                if len(remainder.split()) < 3:
+                    _log(f"  !!  Partial duplicate: shot {row_b.get('shot_number', '?')} subsumes shot {row_a.get('shot_number', '?')} — removing redundant")
+                    remove_idxs.add(j)
+                    break
+    deduped = [r for i, r in enumerate(deduped) if i not in remove_idxs]
+
+    all_rows = deduped
+    if before_dedup != len(all_rows):
+        _log(f"  ok  Dedup: {before_dedup} → {len(all_rows)} shots")
+
     for i, row in enumerate(all_rows, 1):
         row["shot_number"] = i
+
+    # ── Final 4-point validation ─────────────────────────────────────────────
+    _log("  ── Final validation ──")
+    _val_issues = 0
+
+    _final_missing = _find_missing_sentences(all_rows)
+    if _final_missing:
+        _val_issues += len(_final_missing)
+        _log(f"  ⚠ CHECK 1 FAIL: {len(_final_missing)} script sentence(s) still missing:")
+        for _ms in _final_missing[:5]:
+            _log(f"    - \"{_ms[:120]}\"")
+    else:
+        _log("  ✓ Check 1: All script sentences covered")
+
+    _line_counts = {}
+    for _r in all_rows:
+        _ln = _norm_str(_r.get("line", ""))
+        if _ln:
+            _line_counts[_ln] = _line_counts.get(_ln, 0) + 1
+    _dups = {k: v for k, v in _line_counts.items() if v > 1}
+    if _dups:
+        _val_issues += len(_dups)
+        _log(f"  ⚠ CHECK 2 FAIL: {len(_dups)} duplicate Line text(s):")
+        for _ln, _cnt in list(_dups.items())[:3]:
+            _log(f"    - \"{_ln[:80]}\" x{_cnt}")
+    else:
+        _log("  ✓ Check 2: No duplicate lines")
+
+    _final_truncated = _find_truncated_lines(all_rows)
+    if _final_truncated:
+        _val_issues += len(_final_truncated)
+        _log(f"  ⚠ CHECK 3 FAIL: {len(_final_truncated)} truncated Line(s):")
+        for _t in _final_truncated[:3]:
+            _log(f"    - Shot {_t['shot']}: \"{_t['line'][:80]}\" -> full: \"{_t['full_sentence'][:80]}\"")
+    else:
+        _log("  ✓ Check 3: No truncated lines")
+
+    _log("  ✓ Check 4: Rows ordered by script position (scan-based)")
+
+    # Check 5: Line-Description coherence — detect decoupled rows where
+    # the description talks about a different scene than the line
+    _decoupled = []
+    for _r in all_rows:
+        _line = _r.get("line", "").strip()
+        _desc = _r.get("shot_description", "").strip()
+        if not _line or not _desc:
+            continue
+        _line_words = set(_norm(_line))
+        _desc_words = set(_norm(_desc))
+        _names_in_line = {w for w in _line_words if w[0:1].isupper()} if _line_words else set()
+        _names_in_desc = {w for w in _desc_words if w[0:1].isupper()} if _desc_words else set()
+        if _names_in_line and _names_in_desc:
+            _name_overlap = len(_names_in_line & _names_in_desc) / max(len(_names_in_line), 1)
+            if _name_overlap == 0 and len(_names_in_line) >= 2:
+                _decoupled.append(_r.get("shot_number", "?"))
+    if _decoupled:
+        _val_issues += len(_decoupled)
+        _log(f"  ⚠ CHECK 5 FAIL: {len(_decoupled)} shot(s) with Line/Description character mismatch:")
+        for _sn in _decoupled[:5]:
+            _log(f"    - Shot {_sn}")
+    else:
+        _log("  ✓ Check 5: Line-Description coherence OK")
+
+    _log(f"  {'✓ All 5 checks passed' if _val_issues == 0 else f'⚠ {_val_issues} issue(s) found — review output'}")
 
     # ── Final count check ────────────────────────────────────────────────────
     if len(all_rows) < min_shots:
@@ -1707,6 +2056,7 @@ def run_stage2_pipeline(job_id: str, job_dir: Path, episodes: list, ref_files_gl
                 ref_files["episode_detail"] = detail_files[0][1]
                 _log(f"  Using only available episode_detail ({detail_files[0][0]})")
 
+            tok_before = dict(jobs[job_id]["tokens"])
             try:
                 xlsx = _process_one_episode(job_dir, ep["script_text"], ep_name, ref_files)
                 output_files.append(xlsx)
@@ -1714,17 +2064,30 @@ def run_stage2_pipeline(job_id: str, job_dir: Path, episodes: list, ref_files_gl
             except Exception as e:
                 _log(f"  [ERROR] Episode {ep_name} failed: {e}")
                 failures.append(ep_name)
+            tok_after = jobs[job_id]["tokens"]
+            ep_in = tok_after["input"] - tok_before["input"]
+            ep_out = tok_after["output"] - tok_before["output"]
+            ep_calls = tok_after["calls"] - tok_before["calls"]
+            _log(f"  Tokens for {ep_name}: {ep_in:,} input / {ep_out:,} output / {ep_calls} API calls")
+            ep_cost = (ep_in * LLM_INPUT_COST_PER_MTOK + ep_out * LLM_OUTPUT_COST_PER_MTOK) / 1_000_000
+            jobs[job_id]["file_tokens"].append({
+                "name": ep_name,
+                "input": ep_in, "output": ep_out, "calls": ep_calls,
+                "cost": round(ep_cost, 4),
+            })
 
             jobs[job_id]["progress"]["completed"] = i
 
         jobs[job_id]["output_files"] = output_files
         jobs[job_id]["output_file"]  = output_files[0] if output_files else None
 
+        tok = jobs[job_id]["tokens"]
         _log(f"\n{'=' * 60}")
         _log(f"  STAGE 2 COMPLETE")
         _log(f"  Successful: {len(output_files)}/{len(episodes)}")
         if failures:
             _log(f"  Failed:     {len(failures)} — {', '.join(failures)}")
+        _log(f"  Total tokens: {tok['input']:,} input / {tok['output']:,} output / {tok['calls']} API calls")
         _log(f"{'=' * 60}\n")
 
         jobs[job_id]["status"] = "done"
@@ -1738,7 +2101,1305 @@ def run_stage2_pipeline(job_id: str, job_dir: Path, episodes: list, ref_files_gl
 
 
 
-# ── Stage 4 — Video Generation ───────────────────────────────────────────────
+# ── Stage 3 — Script Audit Checker ────────────────────────────────────────────
+
+S3_WORKSPACE = WORKSPACE / "stage3"
+S3_WORKSPACE.mkdir(parents=True, exist_ok=True)
+
+S3_AUDIT_SYSTEM_PROMPT = r"""You are a script audit checker for an AI shot breakdown pipeline. Your task is to verify and fix the Line column of a shot breakdown against the original source script.
+
+WHAT THE LINE COLUMN IS:
+The Line column must contain verbatim text copied directly from the source script — the exact words, punctuation, and sentence structure as written in the script file. It is not a summary, not a label, not a shorthand description, not a dash-separated keyword string.
+
+LINE PROBLEMS TO IDENTIFY:
+
+Problem A — Summarized or paraphrased Line
+Any Line that compresses, shortens, or paraphrases the script text instead of quoting it verbatim.
+How to spot it:
+- Contains — used as a separator between fragments (e.g. "Gordon shifted attention to perfume collection — disinterested air")
+- Drops words, clauses, or dialogue tags that exist in the script sentence
+- Rewrites the script in different words
+- Condenses two script sentences into a short label
+Fix: Replace with the exact verbatim script sentence(s) the Line represents. Copy character for character from the script.
+
+Problem B — Invented Line with no script basis
+Any Line whose text does not appear anywhere in the source script — production labels, location descriptions, visual directions, closing cards.
+How to identify: Search for the Line's key phrases in the source script. If nothing matches, the entire row must be deleted.
+Examples of invented Lines:
+- "Gordon's bedroom — mirror, perfume bottles, early evening quiet"
+- "CLOSING WIDE — Two figures entering the illuminated estate"
+Fix: Flag the entire row for deletion.
+
+Problem C — Truncated Line missing clauses
+A Line that covers only part of a script sentence — only the dialogue dropping the action tag, or only the first clause dropping everything after the comma or conjunction.
+When a script sentence contains multiple clauses joined by commas, conjunctions, or dialogue tags (e.g. "she did X, feeling Y"), every clause must be present in the Line. Read the full sentence from the script before writing the Line.
+Fix: Expand the Line to the full verbatim sentence including all clauses.
+
+Problem D — Intermediate shot Line not matching parent
+Every intermediate shot (decimal shot number like 5.1, 16.1, 23.1) must have its Line copied character for character from its parent shot (the whole-number shot immediately before it). If it differs in any way it must be corrected.
+Fix: Copy the parent shot's Line exactly into the intermediate shot's Line cell.
+
+DUPLICATE AND MISSING COVERAGE CHECKS:
+- Exact duplicates: same Line text on two or more shots that are not an intermediate pair
+- Partial duplicates: one shot's Line is a substring of another shot's Line (and neither is an intentional split)
+- Missing coverage: for each script beat, verify it appears in at least one shot's Line column
+- Do not use fuzzy matching alone. Manually verify any flagged miss.
+- Do not confirm full coverage until every beat is accounted for.
+
+COMMON FAILURE MODES — NEVER DO THESE:
+- Auditing the breakdown against itself — will never catch missing or wrong Lines
+- Writing Lines from memory — any Line written from memory is unverified
+- Fuzzy matching false misses — always manually verify before concluding a beat is missing
+- Deleting a "duplicate" that is the only coverage of a script beat — always check the script first
+- Dropping clauses — when fixing a truncated Line, read the full sentence from the script
+- Paraphrasing instead of copying — close is not correct. The Line must be identical to the script, not similar
+- Leaving intermediate Lines unsynced — after fixing any parent shot's Line, always update all its intermediates to match
+
+OUTPUT FORMAT:
+Return ONLY a valid JSON object with this structure:
+{
+  "fixes": [
+    {
+      "shot_num": <number or decimal>,
+      "problem": "<A|B|C|D>",
+      "original_line": "<current Line value in the breakdown>",
+      "fixed_line": "<corrected verbatim Line from script>",
+      "reason": "<brief explanation>"
+    }
+  ],
+  "delete_rows": [
+    {
+      "shot_num": <number>,
+      "original_line": "<current Line value>",
+      "reason": "<why this row should be deleted>"
+    }
+  ],
+  "notes": "<any coverage observations or warnings>"
+}
+
+For Problem B rows, include them in delete_rows (not in fixes).
+For Problems A, C, D, include them in fixes with the corrected Line.
+If a shot's Line is correct, do not include it in the output.
+Output ONLY valid JSON, no other text.
+"""
+
+S3_AUDIT_CHUNK_SIZE = 30
+
+
+def _s3_read_excel_full(excel_path: Path) -> tuple:
+    """Read Excel preserving ALL columns for writeback."""
+    from openpyxl import load_workbook
+    wb = load_workbook(str(excel_path), data_only=True)
+    ws = wb.active
+
+    headers = []
+    for c in range(1, ws.max_column + 1):
+        val = ws.cell(1, c).value
+        if val is not None:
+            headers.append((c, str(val).strip()))
+
+    header_map = {h.lower(): c for c, h in headers}
+
+    def _find(keywords):
+        for kw in keywords:
+            for h_lower, col in header_map.items():
+                if kw in h_lower:
+                    return col
+        return None
+
+    num_col  = _find(["#", "shot number", "num"])
+    line_col = _find(["line", "narration", "dialogue"])
+    desc_col = _find(["shot description", "description"])
+
+    shots = []
+    for r in range(2, ws.max_row + 1):
+        row_data = {}
+        for c, h in headers:
+            row_data[h] = ws.cell(r, c).value
+        num_val = ws.cell(r, num_col).value if num_col else r - 1
+        line_val = ws.cell(r, line_col).value if line_col else ""
+        desc_val = ws.cell(r, desc_col).value if desc_col else ""
+        if not line_val and not desc_val:
+            continue
+        shots.append({
+            "row": r,
+            "num": num_val,
+            "line": str(line_val or "").strip(),
+            "shot_description": str(desc_val or "").strip(),
+            "columns": row_data,
+        })
+
+    col_names = [h for _, h in headers]
+    wb.close()
+    return shots, col_names
+
+
+def _s3_read_script_file(script_path: Path) -> str:
+    suffix = script_path.suffix.lower()
+    if suffix == ".docx":
+        try:
+            import mammoth
+            with open(script_path, "rb") as f:
+                return mammoth.convert_to_markdown(f).value.strip()
+        except ImportError:
+            raise RuntimeError("pip install mammoth — needed to read .docx")
+    return script_path.read_text(encoding="utf-8", errors="replace")
+
+
+def _s3_format_audit_chunk(shots: list) -> str:
+    lines = []
+    for s in shots:
+        sn = s["num"]
+        line = s["line"]
+        desc = s["shot_description"]
+        lines.append(f"Shot {sn}:\n  Line: {line}\n  Description: {desc}")
+    return "\n\n".join(lines)
+
+
+def _s3_call_audit(script_text: str, chunk_text: str, label: str) -> str:
+    user_msg = (
+        f"TASK: Run the LINE COLUMN AUDIT on the following shots. Compare each shot's Line column "
+        f"against the source script below. Identify all problems (A: summarized/paraphrased, "
+        f"B: invented with no script basis, C: truncated/missing clauses, D: intermediate "
+        f"not matching parent) and provide fixes.\n\n"
+        f"{'=' * 40} SOURCE SCRIPT {'=' * 40}\n{script_text}\n\n"
+        f"{'=' * 40} SHOTS TO AUDIT {'=' * 40}\n{chunk_text}\n\n"
+        f"Return ONLY a JSON object with 'fixes', 'delete_rows', and 'notes' fields."
+    )
+    return call_api_chat(
+        system=S3_AUDIT_SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": user_msg}],
+        label=label,
+        timeout=180,
+        retries=2,
+    )
+
+
+def _s3_parse_audit_response(response: str) -> dict:
+    import json as _json
+    text = response.strip()
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1:
+        return {"fixes": [], "delete_rows": [], "notes": ""}
+    try:
+        obj = _json.loads(text[start:end + 1])
+        if not isinstance(obj, dict):
+            return {"fixes": [], "delete_rows": [], "notes": ""}
+        return {
+            "fixes": obj.get("fixes", []),
+            "delete_rows": obj.get("delete_rows", []),
+            "notes": obj.get("notes", ""),
+        }
+    except _json.JSONDecodeError:
+        return {"fixes": [], "delete_rows": [], "notes": ""}
+
+
+def _s3_apply_audit_fixes(all_fixes: list, all_deletes: list,
+                          input_path: Path, output_path: Path) -> dict:
+    from openpyxl import load_workbook
+
+    wb = load_workbook(str(input_path))
+    ws = wb.active
+
+    header_map = {}
+    for c in range(1, ws.max_column + 1):
+        val = ws.cell(1, c).value
+        if val:
+            header_map[str(val).strip().lower()] = c
+
+    def _find_col(keywords):
+        for kw in keywords:
+            for h, c in header_map.items():
+                if kw in h:
+                    return c
+        return None
+
+    num_col = _find_col(["#", "shot number", "num"])
+    line_col = _find_col(["line", "narration", "dialogue"])
+
+    if not line_col:
+        wb.close()
+        return {"fixed": 0, "deleted": 0}
+
+    shot_row_map = {}
+    total_rows = 0
+    for r in range(2, ws.max_row + 1):
+        cell_val = ws.cell(r, num_col).value if num_col else r - 1
+        if cell_val is not None:
+            shot_row_map[str(cell_val)] = r
+            total_rows += 1
+
+    fixed_count = 0
+    for fix in all_fixes:
+        sn = str(fix.get("shot_num", ""))
+        fixed_line = fix.get("fixed_line", "")
+        if not sn or not fixed_line:
+            continue
+        row = shot_row_map.get(sn)
+        if row:
+            ws.cell(row, line_col, fixed_line)
+            fixed_count += 1
+
+    rows_to_delete = []
+    for d in all_deletes:
+        sn = str(d.get("shot_num", ""))
+        row = shot_row_map.get(sn)
+        if row:
+            rows_to_delete.append(row)
+
+    rows_to_delete.sort(reverse=True)
+    for row in rows_to_delete:
+        ws.delete_rows(row)
+
+    if rows_to_delete and num_col:
+        whole_num = 0
+        last_whole = 0
+        for r in range(2, ws.max_row + 1):
+            cell_val = ws.cell(r, num_col).value
+            if cell_val is None:
+                continue
+            try:
+                fval = float(cell_val)
+                if fval == int(fval):
+                    whole_num += 1
+                    last_whole = whole_num
+                    ws.cell(r, num_col, whole_num)
+                else:
+                    decimal_part = round(fval - int(fval), 1)
+                    ws.cell(r, num_col, last_whole + decimal_part)
+            except (ValueError, TypeError):
+                pass
+
+    wb.save(str(output_path))
+    return {"fixed": fixed_count, "deleted": len(rows_to_delete)}
+
+
+def _run_s3_one(job_id: str, job_dir: Path, excel_path: Path, script_text: str) -> str:
+    _log("=" * 60)
+    _log(f"  STAGE 3 — Script Audit Checker")
+    _log(f"  File: {excel_path.name}")
+    _log("=" * 60)
+
+    _log("  Reading shot breakdown Excel…")
+    shots, col_names = _s3_read_excel_full(excel_path)
+    _log(f"  ok  {len(shots)} shots found, {len(col_names)} columns")
+    _log(f"  Script length: {len(script_text):,} characters")
+
+    total_chunks = max(1, (len(shots) + S3_AUDIT_CHUNK_SIZE - 1) // S3_AUDIT_CHUNK_SIZE)
+    jobs[job_id]["progress"]["total"] = total_chunks + 1
+    jobs[job_id]["progress"]["stage"] = f"{excel_path.stem}"
+
+    all_fixes = []
+    all_deletes = []
+    all_notes = []
+
+    for chunk_idx in range(total_chunks):
+        c_start = chunk_idx * S3_AUDIT_CHUNK_SIZE
+        c_end = min(c_start + S3_AUDIT_CHUNK_SIZE, len(shots))
+        chunk = shots[c_start:c_end]
+
+        shot_range = f"{chunk[0]['num']}–{chunk[-1]['num']}"
+        _log(f"\n  [{chunk_idx + 1}/{total_chunks}]  Auditing shots {shot_range} ({len(chunk)} shots)")
+
+        chunk_text = _s3_format_audit_chunk(chunk)
+        response = _s3_call_audit(script_text, chunk_text, f"audit chunk {chunk_idx + 1}")
+
+        if response:
+            result = _s3_parse_audit_response(response)
+            fixes = result["fixes"]
+            deletes = result["delete_rows"]
+            notes = result["notes"]
+
+            all_fixes.extend(fixes)
+            all_deletes.extend(deletes)
+            if notes:
+                all_notes.append(notes)
+
+            _log(f"  ok  {len(fixes)} fix(es), {len(deletes)} row(s) to delete")
+            for fix in fixes:
+                _log(f"      Shot {fix.get('shot_num')}: Problem {fix.get('problem')} — {fix.get('reason', '')[:80]}")
+            for d in deletes:
+                _log(f"      Shot {d.get('shot_num')}: DELETE — {d.get('reason', '')[:80]}")
+        else:
+            _log(f"  !!  No response for chunk {chunk_idx + 1}")
+
+        jobs[job_id]["progress"]["completed"] = chunk_idx + 1
+
+    _log(f"\n  [{total_chunks + 1}/{total_chunks + 1}]  Running coverage check…")
+    line_summary = []
+    for s in shots:
+        line_summary.append(f"Shot {s['num']}: {s['line']}")
+    compact_lines = "\n".join(line_summary)
+
+    coverage_msg = (
+        f"TASK: Check coverage between the source script and the shot breakdown Lines below.\n\n"
+        f"For each sentence/beat in the script, verify it appears in at least one shot's Line column "
+        f"(either as the full sentence or a confirmed partial split). Report:\n"
+        f"1. Any script beats NOT covered by any shot Line\n"
+        f"2. Any exact duplicate Lines (same text on multiple non-intermediate shots)\n"
+        f"3. Any partial duplicates (one Line is substring of another)\n\n"
+        f"{'=' * 40} SOURCE SCRIPT {'=' * 40}\n{script_text}\n\n"
+        f"{'=' * 40} ALL SHOT LINES {'=' * 40}\n{compact_lines}\n\n"
+        f"Return ONLY a JSON object:\n"
+        f'{{"missing_beats": ["<script sentence not in any Line>", ...], '
+        f'"duplicates": [{{"shots": [<num>, <num>], "line": "<text>"}}], '
+        f'"coverage_pct": <estimated percentage of script covered>, '
+        f'"notes": "<summary>"}}'
+    )
+
+    coverage_response = call_api_chat(
+        system="You are a coverage checker. Compare script text against shot Line columns. Output only valid JSON.",
+        messages=[{"role": "user", "content": coverage_msg}],
+        label="coverage check",
+        timeout=180,
+        retries=2,
+    )
+
+    coverage_result = None
+    if coverage_response:
+        import json as _json
+        text = coverage_response.strip()
+        s_idx = text.find("{")
+        e_idx = text.rfind("}")
+        if s_idx != -1 and e_idx != -1:
+            try:
+                coverage_result = _json.loads(text[s_idx:e_idx + 1])
+            except _json.JSONDecodeError:
+                pass
+
+    if coverage_result:
+        missing = coverage_result.get("missing_beats", [])
+        dupes = coverage_result.get("duplicates", [])
+        cov_pct = coverage_result.get("coverage_pct", "?")
+        _log(f"  ok  Coverage: ~{cov_pct}%")
+        if missing:
+            _log(f"  !!  {len(missing)} script beat(s) not covered:")
+            for m in missing[:10]:
+                _log(f"      — {str(m)[:100]}")
+            if len(missing) > 10:
+                _log(f"      … and {len(missing) - 10} more")
+        else:
+            _log("  ok  All script beats covered")
+        if dupes:
+            _log(f"  !!  {len(dupes)} duplicate Line(s) found")
+            for d in dupes[:5]:
+                _log(f"      Shots {d.get('shots', [])}: {str(d.get('line', ''))[:80]}")
+    else:
+        _log("  !!  Coverage check failed — no parseable response")
+
+    jobs[job_id]["progress"]["completed"] = total_chunks + 1
+
+    _log(f"\n  >>  Total: {len(all_fixes)} fix(es), {len(all_deletes)} deletion(s)")
+
+    jobs[job_id]["flags"] = {
+        "fixes": all_fixes,
+        "delete_rows": all_deletes,
+        "coverage": coverage_result,
+        "notes": all_notes,
+    }
+    jobs[job_id]["excel_path"] = str(excel_path)
+
+    if all_fixes or all_deletes:
+        _log(f"\n{'=' * 60}")
+        _log(f"  AUDIT COMPLETE — issues flagged")
+        _log(f"  Line fixes: {len(all_fixes)}")
+        _log(f"  Rows to delete: {len(all_deletes)}")
+        if coverage_result:
+            _log(f"  Script coverage: ~{coverage_result.get('coverage_pct', '?')}%")
+        _log(f"  Review flags and click 'Fix Issues' to apply.")
+        _log(f"{'=' * 60}\n")
+    else:
+        import shutil
+        output_name = f"{excel_path.stem}_audited.xlsx"
+        output_path = job_dir / output_name
+        shutil.copy2(str(excel_path), str(output_path))
+        jobs[job_id]["output_files"] = [output_name]
+        jobs[job_id]["output_file"] = output_name
+        _log(f"\n{'=' * 60}")
+        _log(f"  AUDIT COMPLETE — No issues found")
+        _log(f"  All {len(shots)} shots have correct Line values")
+        if coverage_result:
+            _log(f"  Script coverage: ~{coverage_result.get('coverage_pct', '?')}%")
+        _log(f"  Output: {output_name}")
+        _log(f"{'=' * 60}\n")
+
+    if all_notes:
+        _log("\n  Audit notes:")
+        for note in all_notes:
+            _log(f"    {note[:200]}")
+
+    return bool(all_fixes or all_deletes)
+
+
+def run_stage3_batch(job_id: str, job_dir: Path, excel_paths: list, script_text: str):
+    log_queue = jobs[job_id]["queue"]
+    _set_job_context(job_id, log_queue)
+
+    try:
+        n = len(excel_paths)
+        _log(f"  Stage 3 — Script Audit Checker — {n} file(s) to audit\n")
+        _log(f"  Script: {len(script_text):,} characters\n")
+        output_files = []
+
+        has_flags = False
+        for i, ep in enumerate(excel_paths, 1):
+            if n > 1:
+                _log(f"\n  ──── File {i}/{n}: {ep.name} ────")
+            tok_before = dict(jobs[job_id]["tokens"])
+            try:
+                flagged = _run_s3_one(job_id, job_dir, ep, script_text)
+                if flagged:
+                    has_flags = True
+            except Exception as e:
+                _log(f"[ERROR] {ep.name} failed: {e}")
+                import traceback; traceback.print_exc()
+            tok_after = jobs[job_id]["tokens"]
+            f_in = tok_after["input"] - tok_before["input"]
+            f_out = tok_after["output"] - tok_before["output"]
+            f_calls = tok_after["calls"] - tok_before["calls"]
+            f_cost = (f_in * LLM_INPUT_COST_PER_MTOK + f_out * LLM_OUTPUT_COST_PER_MTOK) / 1_000_000
+            jobs[job_id]["file_tokens"].append({
+                "name": ep.stem,
+                "input": f_in, "output": f_out, "calls": f_calls,
+                "cost": round(f_cost, 4),
+            })
+
+        if has_flags:
+            jobs[job_id]["status"] = "flagged"
+        else:
+            jobs[job_id]["status"] = "done" if jobs[job_id].get("output_files") else "failed"
+
+        if n > 1:
+            _log(f"\n{'=' * 60}")
+            _log(f"  ALL DONE — audit complete for {n} file(s)")
+            _log(f"{'=' * 60}")
+
+    except Exception as e:
+        _log(f"[ERROR] Stage 3 batch failed: {e}")
+        import traceback; traceback.print_exc()
+        jobs[job_id]["status"] = "failed"
+    finally:
+        log_queue.put(None)
+
+
+# ── Stage 4 — Generate Reference Images (Gemini Imagen 4) ────────────────────
+
+S4_WORKSPACE = WORKSPACE / "stage4"
+S4_WORKSPACE.mkdir(parents=True, exist_ok=True)
+
+S4_COST_PER_IMAGE = 0.02
+S4_RATE_LIMIT_DELAY = 32
+
+
+def _s4_track(job_id: str, calls: int = 0, images: int = 0):
+    if job_id not in jobs:
+        return
+    with jobs[job_id]["tokens_lock"]:
+        jobs[job_id]["tokens"]["calls"]  += calls
+        jobs[job_id]["tokens"]["output"] += images
+        jobs[job_id]["tokens"]["input"]  += calls
+
+
+def _s4_parse_md(md_path: Path) -> list:
+    """Parse a character_canvas or location_reference (.md or .docx) into items for image gen."""
+    import re as _re
+    if md_path.suffix.lower() == ".docx":
+        import mammoth
+        with open(md_path, "rb") as f:
+            text = mammoth.convert_to_markdown(f).value.strip()
+    else:
+        text = md_path.read_text(encoding="utf-8", errors="replace")
+
+    is_char = "character" in md_path.stem.lower()
+    canvas_type = "character" if is_char else "location"
+
+    items = []
+    sections = _re.split(r'\n###\s+', text)
+    for sec in sections[1:]:
+        lines = sec.strip().split("\n")
+        name = lines[0].strip().rstrip("#").strip()
+        if not name or name.lower().startswith("relationship") or name.lower().startswith("output"):
+            continue
+
+        body = "\n".join(lines[1:])
+
+        if is_char:
+            desc_parts = []
+            phys_match = _re.search(r'(?:####?\s*Physical Description)(.*?)(?=####|\Z)', body, _re.S)
+            if phys_match:
+                table_rows = _re.findall(r'\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|', phys_match.group(1))
+                for feat, val in table_rows:
+                    feat, val = feat.strip(), val.strip()
+                    if feat.lower() in ('feature', '---', ''):
+                        continue
+                    desc_parts.append(f"{feat}: {val}")
+            outfit_match = _re.search(r'(?:####?\s*Default Outfit.*?)(.*?)(?=####|\Z)', body, _re.S)
+            if outfit_match:
+                outfit_lines = [l.strip().lstrip("-* ").strip() for l in outfit_match.group(1).strip().split("\n") if l.strip().startswith(("-", "*"))]
+                if outfit_lines:
+                    desc_parts.append("Outfit: " + "; ".join(outfit_lines))
+            tells_match = _re.search(r'(?:####?\s*Key Visual Tells)(.*?)(?=####|\Z)', body, _re.S)
+            if tells_match:
+                tell_lines = [l.strip().lstrip("-* ").strip() for l in tells_match.group(1).strip().split("\n") if l.strip().startswith(("-", "*"))]
+                if tell_lines:
+                    desc_parts.append("Key visual tells: " + "; ".join(tell_lines))
+            desc = ". ".join(desc_parts) if desc_parts else body[:500]
+        else:
+            desc_parts = []
+            phys_match = _re.search(r'(?:####?\s*Physical Description)(.*?)(?=####|\Z)', body, _re.S)
+            if phys_match:
+                phys_lines = [l.strip().lstrip("-* ").strip() for l in phys_match.group(1).strip().split("\n") if l.strip().startswith(("-", "*"))]
+                if phys_lines:
+                    desc_parts.extend(phys_lines)
+            atmo_match = _re.search(r'(?:####?\s*Atmosphere.*?Mood)(.*?)(?=####|\Z)', body, _re.S)
+            if atmo_match:
+                atmo_lines = [l.strip().lstrip("-* ").strip() for l in atmo_match.group(1).strip().split("\n") if l.strip().startswith(("-", "*"))]
+                if atmo_lines:
+                    desc_parts.extend(atmo_lines)
+            type_match = _re.search(r'\*\*Type:\*\*\s*(.*)', body)
+            if type_match:
+                desc_parts.insert(0, type_match.group(1).strip())
+            desc = ". ".join(desc_parts) if desc_parts else body[:500]
+
+        items.append({
+            "type": canvas_type,
+            "name": name,
+            "description": desc,
+            "original_url": "",
+        })
+        _log(f"  ->  Parsed {canvas_type}: {name}")
+
+    return items
+
+
+def _s4_parse_canvas(canvas_path: Path, canvas_type: str) -> list:
+    import openpyxl
+    items = []
+    wb = openpyxl.load_workbook(str(canvas_path), read_only=True, data_only=True)
+    ws = wb[wb.sheetnames[0]]
+
+    headers = [str(c.value or "").strip().lower() for c in next(ws.iter_rows(min_row=1, max_row=1))]
+
+    name_col = None
+    desc_col = None
+    url_col = None
+
+    for i, h in enumerate(headers):
+        if canvas_type == "character":
+            if "character" in h and "name" in h:
+                name_col = i
+            elif h == "prompt" or ("description" in h):
+                desc_col = i
+        else:
+            if "location" in h and "name" in h:
+                name_col = i
+            elif "name" in h and name_col is None:
+                name_col = i
+            elif h == "prompt" or "description" in h:
+                desc_col = i
+        if "image" in h and "url" in h:
+            url_col = i
+
+    if name_col is None:
+        _log(f"  !!  {canvas_type} canvas: no name column found")
+        wb.close()
+        return items
+
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        name = str(row[name_col] or "").strip()
+        if not name:
+            continue
+        desc = str(row[desc_col] or "").strip() if desc_col is not None else ""
+        url  = str(row[url_col] or "").strip() if url_col is not None else ""
+        items.append({
+            "type": canvas_type,
+            "name": name,
+            "description": desc,
+            "original_url": url if url.startswith("http") else "",
+        })
+    wb.close()
+    return items
+
+
+def _s4_generate_one(prompt: str, job_id: str, item_num, job_dir: Path, retries: int = 2, regen_job_id: str = None) -> str:
+    import base64 as _b64
+    track_id = regen_job_id or job_id
+    url = f"{MADEYE_BASE_URL}/v1/images/generations"
+    headers = {
+        "Authorization": f"Bearer {MADEYE_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    body = {
+        "model": "imagen-4.0-fast-generate-001",
+        "prompt": prompt,
+        "n": 1,
+        "response_format": "b64_json",
+        "user": "int-sahni.manas@pocketfm.com",
+        "metadata": {"user_email": "int-sahni.manas@pocketfm.com"},
+    }
+
+    for attempt in range(1, retries + 2):
+        try:
+            with httpx.Client(timeout=120) as hc:
+                resp = hc.post(url, json=body, headers=headers)
+            _s4_track(track_id, calls=1)
+            if resp.status_code == 200:
+                data = resp.json()
+                items = data.get("data", [])
+                if items and items[0].get("b64_json"):
+                    img_bytes = _b64.b64decode(items[0]["b64_json"])
+                    img_dir = job_dir / "images"
+                    img_dir.mkdir(exist_ok=True)
+                    fname = f"ref_{item_num}.png"
+                    (img_dir / fname).write_bytes(img_bytes)
+                    _s4_track(track_id, images=1)
+                    return f"/api/stage4/image/{job_id}/{fname}"
+                elif items and items[0].get("url"):
+                    with httpx.Client(timeout=60) as dl:
+                        img_resp = dl.get(items[0]["url"])
+                    if img_resp.status_code == 200:
+                        img_dir = job_dir / "images"
+                        img_dir.mkdir(exist_ok=True)
+                        fname = f"ref_{item_num}.png"
+                        (img_dir / fname).write_bytes(img_resp.content)
+                        _s4_track(track_id, images=1)
+                        return f"/api/stage4/image/{job_id}/{fname}"
+                _log(f"  x   No image data in response (attempt {attempt})")
+            else:
+                err = resp.text[:200]
+                _log(f"  x   Attempt {attempt}: HTTP {resp.status_code}: {err}")
+                if resp.status_code == 400 and ("SAFETY" in resp.text.upper() or "BLOCKED" in resp.text.upper()):
+                    _log("  !!  Prompt blocked by safety filter — skipping")
+                    return ""
+        except Exception as e:
+            _log(f"  x   Attempt {attempt}: {str(e)[:200]}")
+        if attempt <= retries:
+            wait = 30 * attempt
+            _log(f"  -> Retrying in {wait}s...")
+            time.sleep(wait)
+    return ""
+
+
+def _s4_write_output_excel(items: list, output_path: Path):
+    import openpyxl
+    from openpyxl import Workbook
+    wb = Workbook()
+
+    chars = [it for it in items if it["type"] == "character"]
+    locs  = [it for it in items if it["type"] == "location"]
+
+    def _write_sheet(ws, rows, name_header):
+        headers_list = [name_header, "prompt", "image_url", "preview"]
+        for c, h in enumerate(headers_list, 1):
+            ws.cell(1, c, h)
+            ws.cell(1, c).font = openpyxl.styles.Font(bold=True)
+        ws.column_dimensions['A'].width = 25
+        ws.column_dimensions['B'].width = 50
+        ws.column_dimensions['C'].width = 60
+        for i, item in enumerate(rows, 1):
+            ws.cell(i + 1, 1, item["name"])
+            ws.cell(i + 1, 2, item.get("description", ""))
+            gen_url = item.get("generated_url", "")
+            ws.cell(i + 1, 3, gen_url)
+            if gen_url:
+                ws.cell(i + 1, 4, f'=IMAGE(C{i + 1})')
+
+    ws_char = wb.active
+    ws_char.title = "Characters"
+    _write_sheet(ws_char, chars, "character_name")
+
+    if locs:
+        ws_loc = wb.create_sheet("Locations")
+        _write_sheet(ws_loc, locs, "location_name")
+
+    wb.save(str(output_path))
+
+
+def run_stage4_pipeline(job_id: str, job_dir: Path, items: list):
+    log_queue = jobs[job_id]["queue"]
+    _set_job_context(job_id, log_queue)
+    try:
+        total = len(items)
+        jobs[job_id]["progress"]["total"] = total
+        _log(f"  >>  Stage 4: Generating reference images for {total} items")
+        jobs[job_id]["s4_items"] = items
+
+        for idx, item in enumerate(items, 1):
+            itype = item["type"]
+            name  = item["name"]
+            desc  = item.get("description", "")
+
+            jobs[job_id]["progress"]["completed"] = idx - 1
+            jobs[job_id]["progress"]["stage"] = f"{itype.title()}: {name}"
+            _log(f"  [{idx}/{total}]  {itype.title()}: {name}")
+
+            if itype == "character":
+                prompt = (
+                    "Professional fashion editorial photograph, real human adult with realistic adult body proportions. "
+                    "The subject's head is small relative to the body, exactly 1/7.5 of total height. "
+                    "Long legs, normal-sized torso, photographed from mid-distance showing full body head to shoes. "
+                    f"Subject: {name}. {desc} "
+                    "Shot on 85mm lens, studio lighting, clean neutral background. "
+                    "8K photorealistic. PURE IMAGE ONLY — zero text, no words, no watermark."
+                )
+            else:
+                prompt = (
+                    f"8K photorealistic wide establishing shot of {name}. {desc} "
+                    "Cinematic composition, detailed environment, atmospheric lighting. "
+                    "PURE IMAGE ONLY — zero text, no words, no letters, no watermark."
+                )
+
+            item["prompt"] = prompt
+            url = _s4_generate_one(prompt, job_id, idx, job_dir)
+
+            if url:
+                item["generated_url"] = url
+                _log(f"  ok  Generated image for {name}")
+            else:
+                item["generated_url"] = ""
+                _log(f"  !!  Failed to generate image for {name}")
+
+            jobs[job_id]["file_tokens"].append({
+                "name": f"{itype.title()}: {name}",
+                "images": 1 if url else 0,
+                "cost": round(S4_COST_PER_IMAGE if url else 0, 4),
+            })
+
+            if idx < total:
+                _log(f"  -> Rate limit pause ({S4_RATE_LIMIT_DELAY}s)…")
+                time.sleep(S4_RATE_LIMIT_DELAY)
+
+        jobs[job_id]["progress"]["completed"] = total
+        jobs[job_id]["progress"]["stage"] = "Writing output"
+
+        output_name = f"reference_images_{job_id[:8]}.xlsx"
+        output_path = job_dir / output_name
+        _s4_write_output_excel(items, output_path)
+
+        jobs[job_id]["output_file"] = output_name
+        jobs[job_id]["output_files"] = [output_name]
+        jobs[job_id]["status"] = "done"
+
+        t = jobs[job_id]["tokens"]
+        _log(f"  ==  Done — {t['output']} images | ${t['output'] * S4_COST_PER_IMAGE:.2f}")
+
+    except Exception as e:
+        _log(f"[ERROR] Stage 4 failed: {e}")
+        import traceback; traceback.print_exc()
+        jobs[job_id]["status"] = "failed"
+    finally:
+        log_queue.put(None)
+
+
+# ── Stage 5 — Image Generation (Gemini Imagen 4) ─────────────────────────────
+
+S5_WORKSPACE = WORKSPACE / "stage5"
+S5_WORKSPACE.mkdir(parents=True, exist_ok=True)
+
+S5_PROMPT_PREFIX = "8K photorealistic single-frame photograph. "
+S5_PROMPT_SUFFIX = " PURE IMAGE ONLY — zero text, no words, no letters, no title, no watermark, no overlay."
+S5_NEGATIVE = (
+    "Negative constraints: no face generation beyond provided references, "
+    "no identity blending between characters, no distorted or duplicated facial features, "
+    "no extra eyes noses or asymmetry errors, no blur or loss of facial clarity."
+)
+
+S5_RATE_LIMIT_DELAY = 32  # seconds between images (free tier: 2/min)
+
+INSERT_KEYWORDS = [
+    "hands", "hand", "fingers", "phone", "glass", "cup", "door", "letter",
+    "book", "weapon", "sword", "knife", "ring", "key", "scroll", "map",
+    "close-up of", "insert shot", "detail shot", "object",
+]
+
+
+def _s5_read_excel(excel_path: Path) -> list:
+    from openpyxl import load_workbook
+    wb = load_workbook(str(excel_path), data_only=True)
+    ws = wb.active
+    headers = [str(ws.cell(1, c).value or "").strip().lower() for c in range(1, ws.max_column + 1)]
+
+    def _find(keywords):
+        for i, h in enumerate(headers):
+            for kw in keywords:
+                if kw in h:
+                    return i + 1
+        return None
+
+    num_col    = _find(["#", "num", "shot"])
+    line_col   = _find(["line", "narration", "dialogue", "text"])
+    desc_col   = _find(["shot description", "description"])
+    detail_col = _find(["shot detail", "detail"])
+    size_col   = _find(["shot size", "size"])
+    ref_col    = _find(["reference"])
+
+    shots = []
+    for r in range(2, ws.max_row + 1):
+        line = ws.cell(r, line_col).value if line_col else None
+        if not line:
+            continue
+        shots.append({
+            "row":              r,
+            "num":              ws.cell(r, num_col).value if num_col else r - 1,
+            "line":             str(line).strip(),
+            "shot_description": str(ws.cell(r, desc_col).value or "").strip() if desc_col else "",
+            "shot_detail":      str(ws.cell(r, detail_col).value or "").strip() if detail_col else "",
+            "shot_size":        str(ws.cell(r, size_col).value or "").strip() if size_col else "",
+            "reference":        str(ws.cell(r, ref_col).value or "").strip() if ref_col else "",
+            "preview_1":        "",
+        })
+    return shots
+
+
+def _s5_build_ref_map(char_dir: Path) -> dict:
+    ref_map = {}
+    if not char_dir.exists():
+        return ref_map
+
+    canvas_files = list(char_dir.glob("*.xlsx"))
+    if canvas_files:
+        _log("  >>  Parsing character canvas Excel…")
+        ref_map = _s5_parse_canvas(canvas_files[0], char_dir)
+        return ref_map
+
+    for img_path in sorted(char_dir.glob("*")):
+        if img_path.suffix.lower() not in (".png", ".jpg", ".jpeg", ".webp"):
+            continue
+        name = img_path.stem.replace("_", " ").replace("-", " ").title()
+        ref_map[name] = {"path": img_path}
+        _log(f"  ok  Character ref: {name} ({img_path.name})")
+    return ref_map
+
+
+def _s5_parse_canvas(canvas_path: Path, dest_dir: Path) -> dict:
+    import openpyxl
+    ref_map = {}
+    wb = openpyxl.load_workbook(str(canvas_path), read_only=True, data_only=True)
+
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        headers = [str(c.value or "").strip().lower() for c in next(ws.iter_rows(min_row=1, max_row=1))]
+        name_col = None
+        url_col = None
+        for i, h in enumerate(headers):
+            if ("character" in h or "location" in h) and "name" in h:
+                name_col = i
+            elif "name" in h and name_col is None:
+                name_col = i
+            elif "image" in h and "url" in h:
+                url_col = i
+        if name_col is None or url_col is None:
+            continue
+
+        rows = []
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            cname = str(row[name_col] or "").strip()
+            curl  = str(row[url_col] or "").strip()
+            if cname and curl and (curl.startswith("http") or curl.startswith("/api/")):
+                rows.append((cname, curl))
+
+        _log(f"  ok  Found {len(rows)} entries in sheet '{sheet_name}'")
+        for cname, curl in rows:
+            safe_name = re.sub(r'[^\w\s-]', '', cname).strip().replace(' ', '_')
+            img_path = dest_dir / f"{safe_name}.png"
+
+            if curl.startswith("/api/stage4/image/"):
+                parts = curl.strip("/").split("/")
+                if len(parts) >= 4:
+                    s4_job_id = parts[2]
+                    s4_fname  = parts[3]
+                    local_path = S4_WORKSPACE / s4_job_id / "images" / s4_fname
+                    if local_path.exists():
+                        import shutil
+                        shutil.copy2(str(local_path), str(img_path))
+                        ref_map[cname] = {"path": img_path}
+                        _log(f"  ok  Ref (local): {cname} → {img_path.name}")
+                        continue
+                    _log(f"  !!  Local image not found for {cname}: {local_path}")
+                    continue
+
+            try:
+                resp = httpx.get(curl, timeout=30, follow_redirects=True)
+                if resp.status_code == 200 and len(resp.content) > 500:
+                    img_path.write_bytes(resp.content)
+                    ref_map[cname] = {"path": img_path}
+                    _log(f"  ok  Ref (download): {cname} → {img_path.name}")
+                else:
+                    _log(f"  !!  Failed to download {cname}: HTTP {resp.status_code}")
+            except Exception as e:
+                _log(f"  !!  Failed to download {cname}: {e}")
+
+    wb.close()
+    return ref_map
+
+
+def _s5_match_characters(shot_desc: str, shot_detail: str, ref_map: dict) -> list:
+    combined = (shot_desc + " " + shot_detail).lower()
+    matched = []
+    for name in ref_map:
+        name_lower = name.lower()
+        name_parts = name_lower.split()
+        if name_lower in combined:
+            matched.append(name)
+        elif any(part in combined and len(part) >= 3 for part in name_parts):
+            matched.append(name)
+    return matched
+
+
+def _s5_is_insert_shot(shot_desc: str) -> bool:
+    desc_lower = shot_desc.lower()
+    return any(kw in desc_lower for kw in INSERT_KEYWORDS)
+
+
+def _s5_select_refs(shot: dict, ref_map: dict, last_char: str):
+    desc   = shot["shot_description"]
+    detail = shot["shot_detail"]
+    matched_names = _s5_match_characters(desc, detail, ref_map)
+
+    if not matched_names and _s5_is_insert_shot(desc) and last_char and last_char in ref_map:
+        matched_names = [last_char]
+
+    if not matched_names:
+        return [], "", last_char, []
+
+    ref_images = []
+    for name in matched_names:
+        entry = ref_map.get(name, {})
+        path = entry.get("path")
+        if path and Path(path).exists():
+            ref_images.append({"name": name, "path": Path(path)})
+
+    ref_instruction = ""
+    if ref_images:
+        if len(matched_names) == 1:
+            ref_instruction = (
+                f"REFERENCE IMAGE PROVIDED for {matched_names[0]} — "
+                f"the attached reference image is the authoritative visual for this character. "
+                f"Replicate the exact face, skin tone, hair, build, and features from the reference. "
+                f"Do NOT invent or alter any facial features. "
+            )
+        else:
+            ref_instruction = (
+                f"REFERENCE IMAGES PROVIDED for {', '.join(matched_names)}. "
+                f"Each attached reference image is the authoritative visual for that character. "
+                f"Replicate each character's exact face, skin tone, hair, build, and features from their reference. "
+                f"Do NOT blend or swap features between characters. "
+                f"Clearly separate all characters spatially with no overlapping faces. "
+            )
+    else:
+        if len(matched_names) == 1:
+            ref_instruction = (
+                f"Character: {matched_names[0]}. "
+                f"Maintain consistent facial structure, skin tone, hairstyle, and features for this character. "
+            )
+        elif len(matched_names) >= 2:
+            ref_instruction = (
+                f"Characters: {', '.join(matched_names)}. "
+                f"Each character must be visually distinct and recognizable. "
+                f"Clearly separate all characters spatially with no overlapping faces. "
+            )
+
+    new_last = matched_names[0]
+    return matched_names, ref_instruction, new_last, ref_images
+
+
+S5_COST_PER_IMAGE = 0.02
+
+def _s5_track(job_id: str, calls: int = 0, images: int = 0):
+    if job_id not in jobs:
+        return
+    with jobs[job_id]["tokens_lock"]:
+        jobs[job_id]["tokens"]["calls"]  += calls
+        jobs[job_id]["tokens"]["output"] += images
+        jobs[job_id]["tokens"]["input"]  += calls
+
+def _s5_generate_one(prompt: str, job_id: str,
+                      shot_num, job_dir: Path, retries: int = 2,
+                      regen_job_id: str = None, ref_images: list = None) -> str:
+    import base64 as _b64
+    track_id = regen_job_id or job_id
+    url = f"{MADEYE_BASE_URL}/v1/images/generations"
+    headers = {
+        "Authorization": f"Bearer {MADEYE_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    body = {
+        "model": "imagen-4.0-fast-generate-001",
+        "prompt": prompt,
+        "n": 1,
+        "response_format": "b64_json",
+        "user": "int-sahni.manas@pocketfm.com",
+        "metadata": {"user_email": "int-sahni.manas@pocketfm.com"},
+    }
+
+    if ref_images:
+        reference_list = []
+        for ref in ref_images:
+            try:
+                img_bytes = Path(ref["path"]).read_bytes()
+                b64_data = _b64.b64encode(img_bytes).decode("ascii")
+                reference_list.append({
+                    "referenceImage": {"bytesBase64Encoded": b64_data},
+                    "referenceType": "SUBJECT_REFERENCE",
+                    "subjectDescription": ref["name"],
+                })
+            except Exception as e:
+                _log(f"  !!  Could not read ref image for {ref['name']}: {e}")
+        if reference_list:
+            body["referenceImages"] = reference_list
+
+    for attempt in range(1, retries + 2):
+        try:
+            with httpx.Client(timeout=120) as hc:
+                resp = hc.post(url, json=body, headers=headers)
+            _s5_track(track_id, calls=1)
+            if resp.status_code == 200:
+                data = resp.json()
+                items = data.get("data", [])
+                if items and items[0].get("b64_json"):
+                    img_bytes = _b64.b64decode(items[0]["b64_json"])
+                    img_dir = job_dir / "images"
+                    img_dir.mkdir(exist_ok=True)
+                    fname = f"shot_{shot_num}.png"
+                    (img_dir / fname).write_bytes(img_bytes)
+                    _s5_track(track_id, images=1)
+                    return f"/api/stage5/image/{job_id}/{fname}"
+                elif items and items[0].get("url"):
+                    with httpx.Client(timeout=60) as dl:
+                        img_resp = dl.get(items[0]["url"])
+                    if img_resp.status_code == 200:
+                        img_dir = job_dir / "images"
+                        img_dir.mkdir(exist_ok=True)
+                        fname = f"shot_{shot_num}.png"
+                        (img_dir / fname).write_bytes(img_resp.content)
+                        _s5_track(track_id, images=1)
+                        return f"/api/stage5/image/{job_id}/{fname}"
+                _log(f"  x   No image data in response (attempt {attempt})")
+            else:
+                err = resp.text[:200]
+                _log(f"  x   Attempt {attempt}: HTTP {resp.status_code}: {err}")
+                if resp.status_code == 400 and ("SAFETY" in resp.text.upper() or "BLOCKED" in resp.text.upper()):
+                    _log("  !!  Prompt blocked by safety filter — skipping")
+                    return ""
+        except Exception as e:
+            _log(f"  x   Attempt {attempt}: {str(e)[:200]}")
+        if attempt <= retries:
+            wait = 30 * attempt
+            _log(f"  -> Retrying in {wait}s...")
+            time.sleep(wait)
+    return ""
+
+
+def _s5_write_output_excel(shots: list, input_path: Path, output_path: Path, job_dir: Path = None):
+    from openpyxl import load_workbook
+    wb = load_workbook(str(input_path))
+    ws = wb.active
+
+    preview_col = None
+    for c in range(1, ws.max_column + 1):
+        h = str(ws.cell(1, c).value or "").strip().lower()
+        if "preview_1" in h or "preview 1" in h:
+            preview_col = c
+            break
+    if not preview_col:
+        preview_col = ws.max_column + 1
+        ws.cell(1, preview_col, "Preview_1")
+
+    if job_dir:
+        img_dir = job_dir / "images"
+        if img_dir.exists():
+            job_id = job_dir.name
+            for shot in shots:
+                if not shot.get("preview_1"):
+                    sn = shot["num"]
+                    img_path = img_dir / f"shot_{sn}.png"
+                    if img_path.exists():
+                        shot["preview_1"] = f"/api/stage5/image/{job_id}/{img_path.name}"
+
+    for shot in shots:
+        if shot.get("preview_1"):
+            ws.cell(shot["row"], preview_col, shot["preview_1"])
+
+    wb.save(str(output_path))
+
+
+GSHEET_SA_PATH = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+GSHEET_SHARE_EMAIL = os.environ.get("GSHEET_SHARE_EMAIL", "")
+
+def _s5_create_google_sheet(shots: list, title: str) -> str:
+    try:
+        import gspread
+        from google.oauth2.service_account import Credentials
+    except ImportError:
+        _log("  !!  gspread/google-auth not installed — pip install gspread google-auth")
+        return ""
+
+    sa_path = Path(GSHEET_SA_PATH) if GSHEET_SA_PATH else ROOT / "google_service_account.json"
+    if not sa_path.exists():
+        _log(f"  !!  Service account not found at {sa_path} — skipping Google Sheets")
+        return ""
+
+    try:
+        creds = Credentials.from_service_account_file(str(sa_path), scopes=[
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
+        ])
+        gc = gspread.authorize(creds)
+
+        sh = gc.create(title)
+        ws = sh.sheet1
+
+        headers = ["#", "Line", "Shot Size", "Shot Description", "Shot Detail", "Reference", "Preview_1"]
+        data = [headers]
+        for s in shots:
+            data.append([
+                s.get("num", ""),
+                s.get("line", ""),
+                s.get("shot_size", ""),
+                s.get("shot_description", ""),
+                s.get("shot_detail", ""),
+                s.get("reference", ""),
+                s.get("preview_1", ""),
+            ])
+        ws.update(range_name="A1", values=data)
+
+        ws.format("A1:G1", {
+            "backgroundColor": {"red": 0.12, "green": 0.22, "blue": 0.39},
+            "textFormat": {"bold": True, "foregroundColor": {"red": 1, "green": 1, "blue": 1}},
+            "horizontalAlignment": "CENTER",
+        })
+        ws.freeze(rows=1)
+
+        share_email = GSHEET_SHARE_EMAIL or ""
+        if share_email:
+            sh.share(share_email, perm_type="user", role="writer")
+            _log(f"  ok  Shared with {share_email}")
+        sh.share("", perm_type="anyone", role="reader")
+
+        _log(f"  ok  Google Sheet: {sh.url}")
+        return sh.url
+
+    except Exception as e:
+        _log(f"  !!  Google Sheets error: {str(e)[:200]}")
+        return ""
+
+
+def run_stage5_pipeline(job_id: str, job_dir: Path, excel_path: Path, char_dir: Path, loc_dir: Path = None):
+    log_queue = jobs[job_id]["queue"]
+    _set_job_context(job_id, log_queue)
+
+    try:
+        _log("=" * 60)
+        _log("  STAGE 5 — Image Generation (Imagen 4 Fast via MadEye)")
+        _log("=" * 60)
+
+        _log("  Reading shot breakdown Excel...")
+        shots = _s5_read_excel(excel_path)
+        _log(f"  ok  {len(shots)} shots found")
+
+        jobs[job_id]["progress"]["total"] = len(shots)
+        jobs[job_id]["s5_shots"] = shots
+        jobs[job_id]["s5_prompts"] = {}
+        jobs[job_id]["s5_excel_path"] = str(excel_path)
+        jobs[job_id]["s5_char_dir"] = str(char_dir)
+
+        ref_map = _s5_build_ref_map(char_dir)
+        if ref_map:
+            _log(f"  ok  {len(ref_map)} character reference(s): {', '.join(ref_map.keys())}")
+        else:
+            _log("  --  No character references — generating without identity anchoring")
+
+        loc_map = {}
+        if loc_dir and loc_dir.exists():
+            loc_map = _s5_build_ref_map(loc_dir)
+            if loc_map:
+                _log(f"  ok  {len(loc_map)} location reference(s): {', '.join(loc_map.keys())}")
+            else:
+                _log("  --  No location references")
+
+        generated = 0
+        last_char = ""
+        for i, shot in enumerate(shots):
+            sn = shot["num"] or (i + 1)
+            desc = shot["shot_description"]
+            if not desc:
+                _log(f"  !!  Shot {sn}: no description — skipping")
+                jobs[job_id]["progress"]["completed"] = i + 1
+                continue
+
+            ref_names, ref_instruction, last_char, ref_imgs = _s5_select_refs(shot, ref_map, last_char)
+
+            if loc_map:
+                loc_names = _s5_match_characters(desc, shot.get("shot_detail", ""), loc_map)
+                for ln in loc_names:
+                    entry = loc_map.get(ln, {})
+                    lpath = entry.get("path")
+                    if lpath and Path(lpath).exists():
+                        ref_imgs.append({"name": f"Location: {ln}", "path": Path(lpath)})
+
+            prompt = S5_PROMPT_PREFIX + ref_instruction + desc + " " + S5_NEGATIVE + S5_PROMPT_SUFFIX
+            jobs[job_id]["s5_prompts"][sn] = prompt
+
+            jobs[job_id]["progress"]["stage"] = f"Shot {i+1}/{len(shots)}: generating"
+            ref_label = f" chars=[{', '.join(ref_names)}]" if ref_names else ""
+            img_label = f" refs={len(ref_imgs)}" if ref_imgs else ""
+            _log(f"  ... Shot {sn} ({i+1}/{len(shots)}){ref_label}{img_label}")
+
+            url = _s5_generate_one(prompt, job_id, sn, job_dir, ref_images=ref_imgs)
+            if url:
+                shot["preview_1"] = url
+                generated += 1
+                _log(f"  ok  Shot {sn} saved")
+            else:
+                _log(f"  x   Shot {sn}: generation failed")
+
+            jobs[job_id]["progress"]["completed"] = i + 1
+
+            if i < len(shots) - 1:
+                _log(f"  ... Rate-limit pause ({S5_RATE_LIMIT_DELAY}s)...")
+                time.sleep(S5_RATE_LIMIT_DELAY)
+
+        _log(f"\n  Writing output Excel...")
+        output_name = f"{excel_path.stem}_with_images.xlsx"
+        output_path = job_dir / output_name
+        _s5_write_output_excel(shots, excel_path, output_path, job_dir)
+
+        jobs[job_id]["output_file"] = output_name
+        jobs[job_id]["output_files"] = [output_name]
+
+        _log(f"  Creating Google Sheet...")
+        sheet_title = f"Stage 5 — {excel_path.stem}"
+        sheet_url = _s5_create_google_sheet(shots, sheet_title)
+        if sheet_url:
+            jobs[job_id]["sheet_url"] = sheet_url
+
+        jobs[job_id]["status"] = "done"
+
+        tok = jobs[job_id]["tokens"]
+        jobs[job_id]["file_tokens"].append({
+            "name": "Shot images",
+            "images": tok["output"],
+            "cost": round(tok["output"] * S5_COST_PER_IMAGE, 4),
+        })
+        cost = tok["output"] * S5_COST_PER_IMAGE
+        _log(f"\n{'=' * 60}")
+        _log(f"  STAGE 5 COMPLETE — {generated}/{len(shots)} images generated")
+        _log(f"  API calls: {tok['calls']}  |  Images: {tok['output']}  |  Est. cost: ${cost:.2f}")
+        _log(f"  Output: {output_name}")
+        if sheet_url:
+            _log(f"  Google Sheet: {sheet_url}")
+        _log(f"{'=' * 60}\n")
+
+    except Exception as e:
+        tb = traceback.format_exc()
+        _log(f"\n[ERROR] {e}\n{tb}")
+        jobs[job_id]["status"] = "failed"
+    finally:
+        log_queue.put(None)
+
+
+# ── Stage 6 — Video Generation ───────────────────────────────────────────────
 
 VID_W, VID_H       = 1080, 1080
 VID_FONT_SIZE       = 105
@@ -1747,17 +3408,22 @@ VID_FPS             = 24
 VID_CRF             = 18
 VID_AUDIO_BITRATE   = "192k"
 
-S4_WORKSPACE = Path("D:/video_gen_workspace")
-S4_WORKSPACE.mkdir(parents=True, exist_ok=True)
+S6_WORKSPACE = Path("D:/video_gen_workspace")
+S6_WORKSPACE.mkdir(parents=True, exist_ok=True)
 
-_ASS_STYLE = (
-    f"Style: Default,Poppins,{VID_FONT_SIZE},"
-    "&H0000C4FF,&H0000FFFF,&H00000000,&H00000000,"
-    "-1,0,0,0,100,100,0,0,1,4,2,2,40,40,60,1"
-)
+SUB_COLORS = {
+    "yellow": "&H0000C4FF",
+    "white":  "&H00FFFFFF",
+}
+
+def _ass_style(color_name="yellow"):
+    c = SUB_COLORS.get(color_name, SUB_COLORS["yellow"])
+    return (f"Style: Default,Poppins,{VID_FONT_SIZE},"
+            f"{c},&H0000FFFF,&H00000000,&H00000000,"
+            "-1,0,0,0,100,100,0,0,1,4,2,2,40,40,60,1")
 
 
-def _s4_read_excel(excel_path: Path) -> list:
+def _s6_read_excel(excel_path: Path) -> list:
     import openpyxl
     wb = openpyxl.load_workbook(str(excel_path))
     ws = wb["Shot Breakdown"] if "Shot Breakdown" in wb.sheetnames else wb[wb.sheetnames[0]]
@@ -1773,7 +3439,7 @@ def _s4_read_excel(excel_path: Path) -> list:
 
     num_col  = _find(["#", "num", "shot"])
     line_col = _find(["line", "narration", "dialogue", "text"])
-    url_col  = _find(["generated_url", "url", "image_url", "image", "preview"])
+    url_col  = _find(["preview_1", "preview", "generated_url", "url", "image_url", "image"])
 
     _log(f"  Matched cols -> #:{num_col}  line:{line_col}  url:{url_col}")
 
@@ -1806,7 +3472,7 @@ def _s4_read_excel(excel_path: Path) -> list:
     return shots
 
 
-def _s4_download_images(shots: list, img_dir: Path):
+def _s6_download_images(shots: list, img_dir: Path):
     import ssl, urllib.request
     img_dir.mkdir(exist_ok=True)
     ctx = ssl.create_default_context()
@@ -1869,7 +3535,7 @@ def _s4_download_images(shots: list, img_dir: Path):
             _log(f"  !!  {still_failed} images missing — video will skip those shots")
 
 
-def _s4_resize_images(shots: list, img_dir: Path):
+def _s6_resize_images(shots: list, img_dir: Path):
     from PIL import Image
     for shot in shots:
         src = shot.get("img_path")
@@ -1895,7 +3561,7 @@ def _s4_resize_images(shots: list, img_dir: Path):
     _log(f"  ok  {valid}/{len(shots)} resized to {VID_W}x{VID_H}")
 
 
-def _s4_align_audio(shots: list, audio_path: Path, whisper_model: str) -> float:
+def _s6_align_audio(shots: list, audio_path: Path, whisper_model: str) -> float:
     from difflib import SequenceMatcher
     from faster_whisper import WhisperModel
 
@@ -2043,40 +3709,42 @@ def _s4_align_audio(shots: list, audio_path: Path, whisper_model: str) -> float:
     return duration
 
 
-def _s4_ass_time(sec: float) -> str:
+def _s6_ass_time(sec: float) -> str:
     h = int(sec // 3600)
     m = int((sec % 3600) // 60)
     s = sec % 60
     return f"{h}:{m:02d}:{s:05.2f}"
 
 
-def _s4_wrap(text: str) -> list:
+def _s6_wrap(text: str) -> list:
     mx = VID_CHARS_PER_LINE
     if len(text) <= mx:
         return [text]
-    words, chunks = text.split(), []
-    l1, l2, in2, i = "", "", False, 0
-    while i < len(words):
-        w = words[i]
-        if not in2:
-            t = (l1 + " " + w).strip() if l1 else w
-            if len(t) <= mx: l1 = t; i += 1
-            else: in2 = True
+    words = text.split()
+    lines, cur = [], ""
+    for w in words:
+        test = (cur + " " + w).strip() if cur else w
+        if len(test) <= mx:
+            cur = test
         else:
-            t = (l2 + " " + w).strip() if l2 else w
-            if len(t) <= mx: l2 = t; i += 1
-            else:
-                chunks.append(l1 + ("\\N" + l2 if l2 else ""))
-                l1 = l2 = ""; in2 = False
-    if l1:
-        chunks.append(l1 + ("\\N" + l2 if l2 else ""))
+            if cur:
+                lines.append(cur)
+            cur = w
+    if cur:
+        lines.append(cur)
+    chunks = []
+    for i in range(0, len(lines), 2):
+        if i + 1 < len(lines):
+            chunks.append(lines[i] + "\\N" + lines[i + 1])
+        else:
+            chunks.append(lines[i])
     return chunks or [text[:mx * 2]]
 
 
-def _s4_generate_subtitles(shots: list, ass_path: Path):
+def _s6_generate_subtitles(shots: list, ass_path: Path, sub_color="yellow"):
     events = []
     for shot in shots:
-        chunks = _s4_wrap(shot["line"])
+        chunks = _s6_wrap(shot["line"])
         dur = shot["end"] - shot["start"]
         if len(chunks) == 1:
             events.append((shot["start"], shot["end"], chunks[0]))
@@ -2098,21 +3766,21 @@ def _s4_generate_subtitles(shots: list, ass_path: Path):
                 "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
                 "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
                 "Alignment, MarginL, MarginR, MarginV, Encoding\n")
-        f.write(f"{_ASS_STYLE}\n\n")
+        f.write(f"{_ass_style(sub_color)}\n\n")
         f.write("[Events]\n")
         f.write("Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
         for st, en, tx in events:
-            f.write(f"Dialogue: 0,{_s4_ass_time(st)},{_s4_ass_time(en)},Default,,0,0,0,,{tx}\n")
+            f.write(f"Dialogue: 0,{_s6_ass_time(st)},{_s6_ass_time(en)},Default,,0,0,0,,{tx}\n")
     _log(f"  ok  {len(events)} subtitle events")
 
 
-def _s4_ensure_font(font_dir: Path) -> str:
+def _s6_ensure_font(font_dir: Path) -> str:
     import ssl, urllib.request
     font_dir.mkdir(exist_ok=True)
     fp = font_dir / "Poppins-Bold.ttf"
     if fp.exists():
         return str(font_dir)
-    cached = S4_WORKSPACE / "Poppins-Bold.ttf"
+    cached = S6_WORKSPACE / "Poppins-Bold.ttf"
     if cached.exists():
         shutil.copy2(str(cached), str(fp))
         _log("  ok  Font loaded from cache")
@@ -2135,7 +3803,7 @@ def _s4_ensure_font(font_dir: Path) -> str:
     return str(font_dir)
 
 
-def _s4_render_video(shots, concat_path: Path, audio_path: Path,
+def _s6_render_video(shots, concat_path: Path, audio_path: Path,
                      ass_path: Path, font_dir: str, output_path: Path,
                      subs: bool) -> float:
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2207,8 +3875,8 @@ def _s4_render_video(shots, concat_path: Path, audio_path: Path,
     except ValueError: return 0.0
 
 
-def _run_s4_one(job_id, pair_dir, excel_path, audio_path, whisper_model, subs, pair_idx, step_offset):
-    steps_per = 5 if subs else 3
+def _run_s6_one(job_id, pair_dir, excel_path, audio_path, whisper_model, subs, pair_idx, step_offset, sub_color="yellow"):
+    steps_per = 6 if subs else 4
     lp = f"[{pair_idx}] " if pair_idx > 0 else ""
     def _step(n, label):
         _log(f"\n  -- {lp}Step {n}/{steps_per}: {label} --")
@@ -2217,24 +3885,24 @@ def _run_s4_one(job_id, pair_dir, excel_path, audio_path, whisper_model, subs, p
     img_dir = pair_dir / "images"; font_dir = pair_dir / "fonts"
     ass_path = pair_dir / "subtitles.ass"; concat_path = pair_dir / "concat.txt"
     _step(1, "Reading Excel")
-    shots = _s4_read_excel(excel_path)
+    shots = _s6_read_excel(excel_path)
     _log(f"  ok  {len(shots)} shots")
     _step(2, "Downloading images")
-    _s4_download_images(shots, img_dir)
-    for shot in shots:
-        shot["sq_path"] = shot.get("img_path")
+    _s6_download_images(shots, img_dir)
+    _step(3, "Resizing images to 1080x1080")
+    _s6_resize_images(shots, img_dir)
     if subs:
-        _step(3, "Aligning audio (Whisper)")
-        _s4_align_audio(shots, audio_path, whisper_model)
-        _step(4, "Generating subtitles")
-        font_dir_str = _s4_ensure_font(font_dir)
-        _s4_generate_subtitles(shots, ass_path)
-        _step(5, "Rendering video")
+        _step(4, "Aligning audio (Whisper)")
+        _s6_align_audio(shots, audio_path, whisper_model)
+        _step(5, "Generating subtitles")
+        font_dir_str = _s6_ensure_font(font_dir)
+        _s6_generate_subtitles(shots, ass_path, sub_color)
+        _step(6, "Rendering video")
         safe = re.sub(r'[^a-zA-Z0-9_\-]', '_', excel_path.stem)
         out = pair_dir / f"{safe}_1x1.mp4"
-        _s4_render_video(shots, concat_path, audio_path, ass_path, font_dir_str, out, True)
+        _s6_render_video(shots, concat_path, audio_path, ass_path, font_dir_str, out, True)
     else:
-        _step(3, "Rendering video")
+        _step(4, "Rendering video")
         probe = subprocess.run(
             ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
              "-of", "csv=p=0", str(audio_path)], capture_output=True, text=True)
@@ -2244,7 +3912,7 @@ def _run_s4_one(job_id, pair_dir, excel_path, audio_path, whisper_model, subs, p
         for s in shots: s["start"] = 0.0; s["end"] = per
         safe = re.sub(r'[^a-zA-Z0-9_\-]', '_', excel_path.stem)
         out = pair_dir / f"{safe}_1x1.mp4"
-        _s4_render_video(shots, concat_path, audio_path, ass_path, "", out, False)
+        _s6_render_video(shots, concat_path, audio_path, ass_path, "", out, False)
     jobs[job_id]["progress"]["completed"] = step_offset + steps_per
     if not out.exists():
         raise RuntimeError(f"Output file was not created: {out}")
@@ -2258,10 +3926,10 @@ def _run_s4_one(job_id, pair_dir, excel_path, audio_path, whisper_model, subs, p
     return out
 
 
-def run_stage4_batch(job_id, job_dir, pairs, whisper_model, subs):
+def run_stage6_batch(job_id, job_dir, pairs, whisper_model, subs, sub_color="yellow"):
     log_queue = jobs[job_id]["queue"]
     _set_job_context(job_id, log_queue)
-    steps_per = 5 if subs else 3
+    steps_per = 6 if subs else 4
     try:
         n = len(pairs)
         _log(f"\n{'=' * 60}")
@@ -2274,8 +3942,8 @@ def run_stage4_batch(job_id, job_dir, pairs, whisper_model, subs):
             _log(f"\n{'~' * 60}")
             _log(f"  Pair {i+1}/{n}: {excel_path.name}  +  {audio_path.name}")
             _log(f"{'~' * 60}")
-            out = _run_s4_one(job_id, pair_dir, excel_path, audio_path,
-                              whisper_model, subs, i + 1 if n > 1 else 0, i * steps_per)
+            out = _run_s6_one(job_id, pair_dir, excel_path, audio_path,
+                              whisper_model, subs, i + 1 if n > 1 else 0, i * steps_per, sub_color)
             outputs.append(out.name)
         jobs[job_id]["progress"]["completed"] = steps_per * n
         jobs[job_id]["output_file"] = outputs[0]
@@ -2305,6 +3973,7 @@ def _new_job(job_dir: Path) -> tuple:
         "tokens":      {"input": 0, "output": 0, "calls": 0},
         "tokens_lock": threading.Lock(),
         "output_file": None,
+        "file_tokens": [],
     }
     return job_id, log_queue
 
@@ -2328,7 +3997,11 @@ def index():
 
 @app.route("/api/config")
 def api_config():
-    return jsonify({"model": ARGUS_MODEL})
+    return jsonify({
+        "model": ARGUS_MODEL,
+        "llm_input_cost": LLM_INPUT_COST_PER_MTOK,
+        "llm_output_cost": LLM_OUTPUT_COST_PER_MTOK,
+    })
 
 
 # Stage 1 ──
@@ -2365,6 +4038,7 @@ def api_stage1_run():
         "tokens_lock":  threading.Lock(),
         "output_file":  None,
         "output_files": [],
+        "file_tokens":  [],
         "progress":     {"total": 0, "completed": 0, "stage": "", "started_at": time.time()},
     }
 
@@ -2448,6 +4122,7 @@ def api_stage2_run():
         "tokens_lock":  threading.Lock(),
         "output_file":  None,
         "output_files": [],
+        "file_tokens":  [],
         "progress":     {"total": len(episodes), "completed": 0, "stage": "Starting", "started_at": time.time()},
     }
 
@@ -2481,16 +4156,650 @@ def api_stage2_download(job_id: str):
 
 
 
+# Stage 3 ──
+
+@app.route("/api/stage3/run", methods=["POST"])
+def api_stage3_run():
+    if not ARGUS_API_KEY or not ARGUS_BASE_URL:
+        return jsonify({"error": "ARGUS_API_KEY / ARGUS_BASE_URL not set in .env"}), 500
+    excel_files = request.files.getlist("excels")
+    excel_files = [f for f in excel_files if f.filename]
+    if not excel_files:
+        return jsonify({"error": "No Excel file uploaded"}), 400
+
+    script_files = request.files.getlist("scripts")
+    script_files = [f for f in script_files if f.filename]
+    if not script_files:
+        return jsonify({"error": "No script file uploaded — needed for Line audit"}), 400
+
+    job_id  = str(uuid.uuid4())
+    job_dir = S3_WORKSPACE / job_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+
+    saved_paths = []
+    for ef in excel_files:
+        p = job_dir / Path(ef.filename).name
+        ef.save(str(p))
+        saved_paths.append(p)
+
+    script_file = script_files[0]
+    script_path = job_dir / Path(script_file.filename).name
+    script_file.save(str(script_path))
+    try:
+        script_text = _s3_read_script_file(script_path)
+    except Exception as e:
+        return jsonify({"error": f"Failed to read script: {e}"}), 400
+    if not script_text.strip():
+        return jsonify({"error": "Script file is empty"}), 400
+
+    log_queue = queue.Queue()
+    jobs[job_id] = {
+        "status": "running", "queue": log_queue, "job_dir": job_dir,
+        "tokens": {"input": 0, "output": 0, "calls": 0},
+        "tokens_lock": threading.Lock(),
+        "output_file": None, "output_files": [],
+        "file_tokens": [],
+        "progress": {"total": 0, "completed": 0, "stage": "Starting",
+                     "started_at": time.time()},
+    }
+    threading.Thread(
+        target=run_stage3_batch,
+        args=(job_id, job_dir, saved_paths, script_text),
+        daemon=True).start()
+    return jsonify({"job_id": job_id})
+
+
+@app.route("/api/stage3/download/<job_id>")
+def api_stage3_download(job_id: str):
+    fname = request.args.get("filename", "")
+    if not fname or job_id not in jobs:
+        return "Not found", 404
+    p = S3_WORKSPACE / job_id / fname
+    if not p.exists():
+        return "File not found", 404
+    return send_file(str(p), as_attachment=True, download_name=fname)
+
+
+@app.route("/api/stage3/fix/<job_id>", methods=["POST"])
+def api_stage3_fix(job_id: str):
+    if job_id not in jobs:
+        return jsonify({"error": "Job not found"}), 404
+    job = jobs[job_id]
+    if job["status"] != "flagged":
+        return jsonify({"error": "Job is not in flagged state"}), 400
+    flags = job.get("flags")
+    if not flags:
+        return jsonify({"error": "No flags data"}), 400
+
+    excel_path = Path(job.get("excel_path", ""))
+    if not excel_path.exists():
+        return jsonify({"error": "Source Excel not found"}), 400
+
+    job_dir = job["job_dir"]
+    all_fixes = flags.get("fixes", [])
+    all_deletes = flags.get("delete_rows", [])
+
+    output_name = f"{excel_path.stem}_audited.xlsx"
+    output_path = job_dir / output_name
+
+    stats = _s3_apply_audit_fixes(all_fixes, all_deletes, excel_path, output_path)
+
+    job["output_files"] = [output_name]
+    job["output_file"] = output_name
+    job["status"] = "done"
+
+    return jsonify({
+        "status": "done",
+        "output_file": output_name,
+        "output_files": [output_name],
+        "stats": stats,
+    })
 
 
 # Stage 4 ──
 
 @app.route("/api/stage4/run", methods=["POST"])
 def api_stage4_run():
+    if not MADEYE_API_KEY or not MADEYE_BASE_URL:
+        return jsonify({"error": "MADEYE_API_KEY / MADEYE_BASE_URL not set in .env"}), 500
+
+    char_canvas = request.files.getlist("char_canvas")
+    loc_canvas  = request.files.getlist("loc_canvas")
+    char_canvas = [f for f in char_canvas if f.filename]
+    loc_canvas  = [f for f in loc_canvas if f.filename]
+
+    if not char_canvas and not loc_canvas:
+        return jsonify({"error": "Upload at least one canvas file"}), 400
+
+    job_id  = str(uuid.uuid4())
+    job_dir = S4_WORKSPACE / job_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+
+    items = []
+    for cf in char_canvas:
+        p = job_dir / Path(cf.filename).name
+        cf.save(str(p))
+        items.extend(_s4_parse_md(p))
+    for lf in loc_canvas:
+        p = job_dir / Path(lf.filename).name
+        lf.save(str(p))
+        items.extend(_s4_parse_md(p))
+
+    if not items:
+        return jsonify({"error": "No valid items found in canvas files"}), 400
+
+    log_queue = queue.Queue()
+    jobs[job_id] = {
+        "status": "running", "queue": log_queue, "job_dir": job_dir,
+        "tokens": {"input": 0, "output": 0, "calls": 0},
+        "tokens_lock": threading.Lock(),
+        "output_file": None, "output_files": [],
+        "file_tokens": [],
+        "progress": {"total": 0, "completed": 0, "stage": "Starting",
+                     "started_at": time.time()},
+    }
+    threading.Thread(
+        target=run_stage4_pipeline,
+        args=(job_id, job_dir, items),
+        daemon=True).start()
+    return jsonify({"job_id": job_id})
+
+
+@app.route("/api/stage4/image/<job_id>/<filename>")
+def api_stage4_image(job_id: str, filename: str):
+    if job_id not in jobs:
+        return "Job not found", 404
+    path = S4_WORKSPACE / job_id / "images" / filename
+    if not path.exists():
+        return "Image not found", 404
+    return send_file(str(path), mimetype="image/png")
+
+
+@app.route("/api/stage4/download/<job_id>")
+def api_stage4_download(job_id: str):
+    fname = request.args.get("filename", "")
+    if not fname or job_id not in jobs:
+        return "Not found", 404
+    p = S4_WORKSPACE / job_id / fname
+    if not p.exists():
+        return "File not found", 404
+    return send_file(str(p), as_attachment=True, download_name=fname)
+
+
+@app.route("/api/stage4/shots/<job_id>")
+def api_stage4_shots(job_id: str):
+    if job_id not in jobs:
+        return jsonify([])
+    items = jobs[job_id].get("s4_items", [])
+    result = []
+    for i, item in enumerate(items, 1):
+        gen_url = item.get("generated_url", "")
+        result.append({
+            "num": i,
+            "name": f"{item['type'].title()}: {item['name']}",
+            "has_image": bool(gen_url),
+            "preview_url": gen_url,
+        })
+    return jsonify(result)
+
+
+@app.route("/api/stage4/regen", methods=["POST"])
+def api_stage4_regen():
+    data = request.get_json(force=True)
+    orig_job_id = data.get("job_id")
+    feedback    = data.get("feedback", "")
+    if not orig_job_id or orig_job_id not in jobs:
+        return jsonify({"error": "Invalid job_id"}), 400
+
+    items = jobs[orig_job_id].get("s4_items", [])
+    if not items:
+        return jsonify({"error": "No items in original job"}), 400
+
+    nums = set()
+    for m in re.finditer(r'(?:item|character|location|#)\s*(\d+)', feedback, re.I):
+        nums.add(int(m.group(1)))
+    if not nums:
+        for m in re.finditer(r'(\d+)', feedback):
+            n = int(m.group(1))
+            if 1 <= n <= len(items):
+                nums.add(n)
+    if not nums:
+        return jsonify({"error": "Could not determine which items to regenerate from feedback"}), 400
+
+    regen_items = []
+    for n in sorted(nums):
+        if 1 <= n <= len(items):
+            regen_items.append((n, items[n - 1]))
+
+    regen_job_id = str(uuid.uuid4())
+    regen_dir = S4_WORKSPACE / orig_job_id
+    log_queue = queue.Queue()
+    jobs[regen_job_id] = {
+        "status": "running", "queue": log_queue, "job_dir": regen_dir,
+        "tokens": {"input": 0, "output": 0, "calls": 0},
+        "tokens_lock": threading.Lock(),
+        "output_file": None, "output_files": [],
+        "progress": {"total": len(regen_items), "completed": 0, "stage": "Regenerating",
+                     "started_at": time.time()},
+    }
+
+    def _regen():
+        _set_job_context(regen_job_id, log_queue)
+        try:
+            for idx, (num, item) in enumerate(regen_items, 1):
+                _log(f"  [{idx}/{len(regen_items)}]  Regenerating: {item['name']}")
+                jobs[regen_job_id]["progress"]["completed"] = idx - 1
+
+                itype = item.get("type", "character")
+                name = item.get("name", "")
+                desc = item.get("description", "")
+                if itype == "character":
+                    new_prompt = (
+                        f"{feedback}. "
+                        "Professional fashion editorial photograph, real human adult with realistic adult body proportions. "
+                        "The subject's head is small relative to the body, exactly 1/7.5 of total height. "
+                        "Long legs, normal-sized torso, photographed from mid-distance showing full body head to shoes. "
+                        f"Subject: {name}. {desc} "
+                        "Shot on 85mm lens, studio lighting, clean neutral background. "
+                        "8K photorealistic. PURE IMAGE ONLY — zero text, no words, no watermark."
+                    )
+                else:
+                    new_prompt = (
+                        f"{feedback}. "
+                        f"8K photorealistic wide establishing shot of {name}. {desc} "
+                        "Cinematic composition, detailed environment, atmospheric lighting. "
+                        "PURE IMAGE ONLY — zero text, no words, no letters, no watermark."
+                    )
+                url = _s4_generate_one(new_prompt, orig_job_id, num, regen_dir, regen_job_id=regen_job_id)
+                if url:
+                    item["generated_url"] = url
+                    _log(f"  ok  Regenerated {item['name']}")
+                else:
+                    _log(f"  !!  Failed to regenerate {item['name']}")
+
+                if idx < len(regen_items):
+                    time.sleep(S4_RATE_LIMIT_DELAY)
+
+            jobs[regen_job_id]["progress"]["completed"] = len(regen_items)
+
+            output_name = jobs[orig_job_id].get("output_file")
+            if output_name:
+                output_path = regen_dir / output_name
+                _s4_write_output_excel(items, output_path)
+
+            jobs[regen_job_id]["status"] = "done"
+            t = jobs[regen_job_id]["tokens"]
+            _log(f"  ==  Regen done — {t['output']} images | ${t['output'] * S4_COST_PER_IMAGE:.2f}")
+        except Exception as e:
+            _log(f"[ERROR] Stage 4 regen failed: {e}")
+            jobs[regen_job_id]["status"] = "failed"
+        finally:
+            log_queue.put(None)
+
+    threading.Thread(target=_regen, daemon=True).start()
+    return jsonify({"job_id": regen_job_id, "items": [n for n, _ in regen_items]})
+
+
+# Stage 5 ──
+
+@app.route("/api/stage5/run", methods=["POST"])
+def api_stage5_run():
+    if not MADEYE_API_KEY or not MADEYE_BASE_URL:
+        return jsonify({"error": "MADEYE_API_KEY / MADEYE_BASE_URL not set in .env"}), 500
+    excel_files = request.files.getlist("excels")
+    char_files  = request.files.getlist("char_images")
+    loc_files   = request.files.getlist("loc_images")
+    excel_files = [f for f in excel_files if f.filename]
+    char_files  = [f for f in char_files if f.filename]
+    loc_files   = [f for f in loc_files if f.filename]
+    if not excel_files:
+        return jsonify({"error": "No Excel file uploaded"}), 400
+
+    job_id  = str(uuid.uuid4())
+    job_dir = S5_WORKSPACE / job_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+
+    ep = job_dir / Path(excel_files[0].filename).name
+    excel_files[0].save(str(ep))
+
+    char_dir = job_dir / "char_refs"
+    char_dir.mkdir(exist_ok=True)
+    for cf in char_files:
+        fname = Path(cf.filename).name
+        if fname.lower().endswith(".xlsx"):
+            cf.save(str(char_dir / fname))
+        else:
+            cf.save(str(char_dir / fname))
+
+    loc_dir = job_dir / "loc_refs"
+    loc_dir.mkdir(exist_ok=True)
+    for lf in loc_files:
+        fname = Path(lf.filename).name
+        if fname.lower().endswith(".xlsx"):
+            lf.save(str(loc_dir / fname))
+        else:
+            lf.save(str(loc_dir / fname))
+
+    log_queue = queue.Queue()
+    jobs[job_id] = {
+        "status": "running", "queue": log_queue, "job_dir": job_dir,
+        "tokens": {"input": 0, "output": 0, "calls": 0},
+        "tokens_lock": threading.Lock(),
+        "output_file": None, "output_files": [],
+        "file_tokens": [],
+        "progress": {"total": 0, "completed": 0, "stage": "Starting",
+                     "started_at": time.time()},
+    }
+    threading.Thread(
+        target=run_stage5_pipeline,
+        args=(job_id, job_dir, ep, char_dir, loc_dir),
+        daemon=True).start()
+    return jsonify({"job_id": job_id})
+
+
+@app.route("/api/stage5/image/<job_id>/<filename>")
+def api_stage5_image(job_id: str, filename: str):
+    if job_id not in jobs:
+        path = S5_WORKSPACE / job_id / "images" / filename
+    else:
+        path = jobs[job_id]["job_dir"] / "images" / filename
+    if not path.exists():
+        return jsonify({"error": "not found"}), 404
+    return send_file(str(path), mimetype="image/png")
+
+
+@app.route("/api/stage5/download/<job_id>")
+def api_stage5_download(job_id: str):
+    if job_id not in jobs:
+        return jsonify({"error": "not found"}), 404
+    job = jobs[job_id]
+    filename = request.args.get("filename") or job.get("output_file")
+    if not filename:
+        return jsonify({"error": "no output file yet"}), 404
+    path = job["job_dir"] / filename
+    if not path.exists():
+        hits = list(job["job_dir"].rglob(filename))
+        path = hits[0] if hits else path
+    if not path.exists():
+        return jsonify({"error": "file missing"}), 404
+    try:
+        path.resolve().relative_to(job["job_dir"].resolve())
+    except ValueError:
+        return jsonify({"error": "invalid filename"}), 400
+    return send_file(str(path), as_attachment=True, download_name=filename)
+
+
+@app.route("/api/stage5/shots/<job_id>")
+def api_stage5_shots(job_id: str):
+    if job_id not in jobs:
+        return jsonify({"error": "not found"}), 404
+    shots = jobs[job_id].get("s5_shots", [])
+    result = []
+    for s in shots:
+        sn = s.get("num", "")
+        result.append({
+            "num": sn,
+            "line": (s.get("line", "")[:80] + "...") if len(s.get("line", "")) > 80 else s.get("line", ""),
+            "preview_1": s.get("preview_1", ""),
+            "has_image": bool(s.get("preview_1")),
+        })
+    return jsonify(result)
+
+
+@app.route("/api/stage5/regen", methods=["POST"])
+def api_stage5_regen():
+    body = request.get_json(force=True) or {}
+    job_id   = body.get("job_id", "")
+    feedback = body.get("feedback", "").strip()
+    if not job_id or job_id not in jobs:
+        return jsonify({"error": "Job not found"}), 404
+    if not feedback:
+        return jsonify({"error": "No feedback provided"}), 400
+
+    job = jobs[job_id]
+    prompts = job.get("s5_prompts", {})
+    shots   = job.get("s5_shots", [])
+    if not prompts or not shots:
+        return jsonify({"error": "No shot data — run Stage 5 first"}), 400
+
+    shot_nums = set()
+    for m in re.finditer(r'(?:shot\s*#?\s*|^#?\s*)(\d+)', feedback, re.IGNORECASE | re.MULTILINE):
+        shot_nums.add(int(m.group(1)))
+
+    if not shot_nums:
+        return jsonify({"error": "Could not find shot numbers in feedback. Use format: Shot 12: description of issue"}), 400
+
+    regen_queue = queue.Queue()
+    regen_job_id = f"{job_id}_regen_{int(time.time())}"
+    jobs[regen_job_id] = {
+        "status": "running", "queue": regen_queue, "job_dir": job["job_dir"],
+        "tokens": dict(job.get("tokens", {"input": 0, "output": 0, "calls": 0})),
+        "tokens_lock": threading.Lock(),
+        "output_file": job.get("output_file"), "output_files": job.get("output_files", []),
+        "progress": {"total": len(shot_nums), "completed": 0, "stage": "Starting regen"},
+        "s5_shots": shots, "s5_prompts": prompts,
+    }
+
+    def _run_regen():
+        _set_job_context(regen_job_id, regen_queue)
+        try:
+            _log(f"\n{'=' * 60}")
+            _log(f"  STAGE 3 — Regenerating {len(shot_nums)} shot(s)")
+            _log(f"  Feedback: {feedback[:200]}")
+            _log(f"{'=' * 60}")
+
+            regen_count = 0
+            for i, sn in enumerate(sorted(shot_nums)):
+                orig_prompt = prompts.get(sn, "")
+                if not orig_prompt:
+                    _log(f"  !!  Shot {sn}: no original prompt found — skipping")
+                    jobs[regen_job_id]["progress"]["completed"] = i + 1
+                    continue
+
+                shot_feedback = ""
+                for line in feedback.split("\n"):
+                    if re.search(rf'(?:shot\s*#?\s*)?{sn}\b', line, re.IGNORECASE):
+                        shot_feedback += re.sub(rf'^.*?{sn}\s*[:—\-]\s*', '', line, flags=re.IGNORECASE).strip() + " "
+
+                if not shot_feedback.strip():
+                    shot_feedback = feedback
+
+                regen_prompt = (
+                    orig_prompt +
+                    f"\n\nFEEDBACK — fix the following issues: {shot_feedback.strip()}"
+                )
+
+                jobs[regen_job_id]["progress"]["stage"] = f"Regenerating shot {sn} ({i+1}/{len(shot_nums)})"
+                _log(f"  ... Regenerating shot {sn}: {shot_feedback.strip()[:100]}")
+
+                url = _s5_generate_one(regen_prompt, job_id, sn, job["job_dir"], regen_job_id=regen_job_id)
+                if url:
+                    for s in shots:
+                        if s.get("num") == sn:
+                            s["preview_1"] = url
+                            break
+                    regen_count += 1
+                    _log(f"  ok  Shot {sn} regenerated")
+                else:
+                    _log(f"  x   Shot {sn}: regeneration failed")
+
+                jobs[regen_job_id]["progress"]["completed"] = i + 1
+
+                if i < len(shot_nums) - 1:
+                    time.sleep(S5_RATE_LIMIT_DELAY)
+
+            excel_path = Path(job.get("s5_excel_path", ""))
+            if excel_path.exists():
+                output_name = job.get("output_file", f"{excel_path.stem}_with_images.xlsx")
+                output_path = job["job_dir"] / output_name
+                _s5_write_output_excel(shots, excel_path, output_path, job_dir)
+                _log(f"  ok  Excel updated: {output_name}")
+
+            tok = jobs[regen_job_id]["tokens"]
+            cost = tok["output"] * S5_COST_PER_IMAGE
+            _log(f"\n{'=' * 60}")
+            _log(f"  REGEN COMPLETE — {regen_count}/{len(shot_nums)} shots regenerated")
+            _log(f"  API calls: {tok['calls']}  |  Images: {tok['output']}  |  Est. cost: ${cost:.2f}")
+            _log(f"{'=' * 60}\n")
+
+            jobs[regen_job_id]["status"] = "done"
+            job["s5_shots"] = shots
+
+        except Exception as e:
+            _log(f"\n[ERROR] {e}\n{traceback.format_exc()}")
+            jobs[regen_job_id]["status"] = "failed"
+        finally:
+            regen_queue.put(None)
+
+    threading.Thread(target=_run_regen, daemon=True).start()
+    return jsonify({"job_id": regen_job_id, "shots": sorted(shot_nums)})
+
+
+@app.route("/api/stage5/resume", methods=["POST"])
+def api_stage5_resume():
+    """Resume a Stage 5 job that was interrupted — only generates missing images."""
+    data = request.get_json(force=True) or {}
+    orig_job_id = data.get("job_id", "")
+    if not orig_job_id:
+        return jsonify({"error": "Provide job_id"}), 400
+
+    job_dir = S5_WORKSPACE / orig_job_id
+    if not job_dir.exists():
+        return jsonify({"error": f"Job directory not found: {orig_job_id}"}), 404
+
+    img_dir = job_dir / "images"
+    existing_imgs = set()
+    if img_dir.exists():
+        for f in img_dir.iterdir():
+            if f.name.startswith("shot_") and f.suffix == ".png":
+                existing_imgs.add(f.stem.replace("shot_", ""))
+
+    excel_files = list(job_dir.glob("*.xlsx"))
+    if not excel_files:
+        return jsonify({"error": "No Excel file found in job directory"}), 400
+    excel_path = excel_files[0]
+
+    shots = _s5_read_excel(excel_path)
+    missing = [s for s in shots if str(s["num"]) not in existing_imgs]
+
+    if not missing:
+        return jsonify({"error": "All shots already have images — nothing to resume"}), 400
+
+    char_dir = job_dir / "char_refs"
+    loc_dir  = job_dir / "loc_refs"
+
+    resume_job_id = f"{orig_job_id}_resume_{int(time.time())}"
+    log_queue = queue.Queue()
+    jobs[resume_job_id] = {
+        "status": "running", "queue": log_queue, "job_dir": job_dir,
+        "tokens": {"input": 0, "output": 0, "calls": 0},
+        "tokens_lock": threading.Lock(),
+        "output_file": None, "output_files": [],
+        "progress": {"total": len(missing), "completed": 0, "stage": "Resuming"},
+        "s5_shots": shots, "s5_prompts": {},
+    }
+
+    def _run_resume():
+        _set_job_context(resume_job_id, log_queue)
+        try:
+            _log("=" * 60)
+            _log(f"  STAGE 5 RESUME — {len(missing)} missing shots (of {len(shots)} total)")
+            _log(f"  Already generated: {len(existing_imgs)} images")
+            _log("=" * 60)
+
+            ref_map = _s5_build_ref_map(char_dir)
+            if ref_map:
+                _log(f"  ok  {len(ref_map)} character reference(s)")
+
+            loc_map = {}
+            if loc_dir.exists():
+                loc_map = _s5_build_ref_map(loc_dir)
+                if loc_map:
+                    _log(f"  ok  {len(loc_map)} location reference(s)")
+
+            generated = 0
+            last_char = ""
+            for i, shot in enumerate(missing):
+                sn = shot["num"]
+                desc = shot["shot_description"]
+                if not desc:
+                    _log(f"  !!  Shot {sn}: no description — skipping")
+                    jobs[resume_job_id]["progress"]["completed"] = i + 1
+                    continue
+
+                ref_names, ref_instruction, last_char, ref_imgs = _s5_select_refs(shot, ref_map, last_char)
+
+                if loc_map:
+                    loc_names = _s5_match_characters(desc, shot.get("shot_detail", ""), loc_map)
+                    for ln in loc_names:
+                        entry = loc_map.get(ln, {})
+                        lpath = entry.get("path")
+                        if lpath and Path(lpath).exists():
+                            ref_imgs.append({"name": f"Location: {ln}", "path": Path(lpath)})
+
+                prompt = S5_PROMPT_PREFIX + ref_instruction + desc + " " + S5_NEGATIVE + S5_PROMPT_SUFFIX
+                jobs[resume_job_id]["s5_prompts"][sn] = prompt
+
+                jobs[resume_job_id]["progress"]["stage"] = f"Shot {sn} ({i+1}/{len(missing)})"
+                ref_label = f" chars=[{', '.join(ref_names)}]" if ref_names else ""
+                _log(f"  ... Shot {sn} ({i+1}/{len(missing)}){ref_label}")
+
+                url = _s5_generate_one(prompt, orig_job_id, sn, job_dir,
+                                        regen_job_id=resume_job_id, ref_images=ref_imgs)
+                if url:
+                    shot["preview_1"] = url
+                    for s in shots:
+                        if s["num"] == sn:
+                            s["preview_1"] = url
+                            break
+                    generated += 1
+                    _log(f"  ok  Shot {sn} saved")
+                else:
+                    _log(f"  x   Shot {sn}: generation failed")
+
+                jobs[resume_job_id]["progress"]["completed"] = i + 1
+
+                if i < len(missing) - 1:
+                    _log(f"  ... Rate-limit pause ({S5_RATE_LIMIT_DELAY}s)...")
+                    time.sleep(S5_RATE_LIMIT_DELAY)
+
+            _log(f"\n  Writing output Excel...")
+            output_name = f"{excel_path.stem}_with_images.xlsx"
+            output_path = job_dir / output_name
+            _s5_write_output_excel(shots, excel_path, output_path, job_dir)
+
+            jobs[resume_job_id]["output_file"] = output_name
+            jobs[resume_job_id]["output_files"] = [output_name]
+            jobs[resume_job_id]["status"] = "done"
+
+            t = jobs[resume_job_id]["tokens"]
+            _log(f"  ==  Resume done — {generated}/{len(missing)} generated | ${t['output'] * 0.02:.2f}")
+
+        except Exception as e:
+            import traceback
+            _log(f"\n[ERROR] {e}\n{traceback.format_exc()}")
+            jobs[resume_job_id]["status"] = "failed"
+        finally:
+            log_queue.put(None)
+
+    threading.Thread(target=_run_resume, daemon=True).start()
+    return jsonify({
+        "job_id": resume_job_id,
+        "total_shots": len(shots),
+        "already_done": len(existing_imgs),
+        "remaining": len(missing),
+    })
+
+
+# Stage 6 ──
+
+@app.route("/api/stage6/run", methods=["POST"])
+def api_stage6_run():
     excel_files   = request.files.getlist("excels")
     audio_files   = request.files.getlist("audios")
     subs          = request.form.get("subs", "yes")
     whisper_model = request.form.get("whisper_model", "base.en")
+    sub_color     = request.form.get("sub_color", "yellow")
     excel_files = [f for f in excel_files if f.filename]
     audio_files = [f for f in audio_files if f.filename]
     if not excel_files:
@@ -2500,7 +4809,7 @@ def api_stage4_run():
     if len(excel_files) != len(audio_files):
         return jsonify({"error": f"Mismatch: {len(excel_files)} Excel but {len(audio_files)} audio"}), 400
     job_id  = str(uuid.uuid4())
-    job_dir = S4_WORKSPACE / job_id
+    job_dir = S6_WORKSPACE / job_id
     job_dir.mkdir(parents=True, exist_ok=True)
     pairs = []
     for i, (ef, af) in enumerate(zip(excel_files, audio_files)):
@@ -2510,7 +4819,7 @@ def api_stage4_run():
         ap = ep_dir / Path(af.filename).name
         ef.save(str(ep)); af.save(str(ap))
         pairs.append((ep, ap))
-    steps_per = 5 if subs == "yes" else 3
+    steps_per = 6 if subs == "yes" else 4
     total = steps_per * len(pairs)
     log_queue = queue.Queue()
     jobs[job_id] = {
@@ -2518,18 +4827,19 @@ def api_stage4_run():
         "tokens": {"input": 0, "output": 0, "calls": 0},
         "tokens_lock": threading.Lock(),
         "output_file": None, "output_files": [],
+        "file_tokens": [],
         "progress": {"total": total, "completed": 0, "stage": "Starting",
                      "started_at": time.time(), "pair_count": len(pairs)},
     }
     threading.Thread(
-        target=run_stage4_batch,
-        args=(job_id, job_dir, pairs, whisper_model, subs == "yes"),
+        target=run_stage6_batch,
+        args=(job_id, job_dir, pairs, whisper_model, subs == "yes", sub_color),
         daemon=True).start()
     return jsonify({"job_id": job_id})
 
 
-@app.route("/api/stage4/download/<job_id>")
-def api_stage4_download(job_id: str):
+@app.route("/api/stage6/download/<job_id>")
+def api_stage6_download(job_id: str):
     if job_id not in jobs:
         return jsonify({"error": "not found"}), 404
     job = jobs[job_id]
@@ -2651,20 +4961,27 @@ def api_status(job_id: str):
             prog["eta_sec"] = int(remaining / rate) if rate > 0 and remaining > 0 else 0
         prog.pop("started_at", None)  # don't leak raw timestamp
 
-    return jsonify({
+    resp = {
         "status":       job["status"],
         "files":        files,
         "output_file":  job.get("output_file"),
         "output_files": job.get("output_files", []),
+        "sheet_url":    job.get("sheet_url", ""),
         "progress":     prog,
         "tokens":       job.get("tokens", {"input": 0, "output": 0, "calls": 0}),
-    })
+        "file_tokens":  job.get("file_tokens", []),
+        "total_cost":   round(sum(ft.get("cost", 0) for ft in job.get("file_tokens", [])), 4),
+    }
+    if job.get("flags"):
+        resp["flags"] = job["flags"]
+    return jsonify(resp)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    print("\n  Shot Generation Pipeline — Stage 1 + Stage 2")
-    print(f"  Model : {ARGUS_MODEL or '(not set)'}")
+    print("\n  FRAMES — Shot Generation Pipeline")
+    print(f"  Argus : {ARGUS_MODEL or '(not set)'}")
+    print(f"  MadEye: {'configured' if MADEYE_API_KEY else '(not set)'} — {MADEYE_BASE_URL or '(no URL)'}")
     print("  Open  : http://localhost:5000\n")
     app.run(host="127.0.0.1", port=5000, debug=False, threaded=True)

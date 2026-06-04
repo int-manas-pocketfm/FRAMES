@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Shot Generation Pipeline</title>
+<title>FRAMES</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
   font-family: 'Segoe UI', system-ui, sans-serif;
-  background: #f0f2f5;
-  color: #1a202c;
+  background: #0f1117;
+  color: #e2e8f0;
   height: 100vh;
   display: flex;
   flex-direction: column;
@@ -19,20 +19,21 @@ body {
 
 header {
   padding: 12px 24px;
-  background: #fff;
-  border-bottom: 1px solid #e2e8f0;
+  background: #161b22;
+  border-bottom: 1px solid #30363d;
   display: flex;
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
 }
-header h1 { font-size: 15px; font-weight: 700; }
-header span { font-size: 12px; color: #a0aec0; margin-left: auto; }
+header img.logo { height: 28px; width: auto; }
+header h1 { font-size: 18px; font-weight: 900; color: #e2e8f0; letter-spacing: 2px; text-transform: uppercase; }
+header span { font-size: 12px; color: #8b949e; margin-left: auto; }
 
 .stage-nav {
   display: flex;
-  background: #fff;
-  border-bottom: 2px solid #e2e8f0;
+  background: #161b22;
+  border-bottom: 2px solid #30363d;
   padding: 0 24px;
   flex-shrink: 0;
   overflow-x: auto;
@@ -41,7 +42,7 @@ header span { font-size: 12px; color: #a0aec0; margin-left: auto; }
   padding: 10px 22px;
   font-size: 13px;
   font-weight: 600;
-  color: #a0aec0;
+  color: #8b949e;
   background: none;
   border: none;
   border-bottom: 3px solid transparent;
@@ -49,8 +50,8 @@ header span { font-size: 12px; color: #a0aec0; margin-left: auto; }
   cursor: pointer;
   transition: color .15s, border-color .15s;
 }
-.stage-tab.active { color: #2d3748; border-bottom-color: #3182ce; }
-.stage-tab:hover:not(.active) { color: #4a5568; }
+.stage-tab.active { color: #e2e8f0; border-bottom-color: #58a6ff; }
+.stage-tab:hover:not(.active) { color: #c9d1d9; }
 
 .main { flex: 1; overflow: hidden; position: relative; }
 .stage-view { display: none; position: absolute; inset: 0; }
@@ -59,144 +60,144 @@ header span { font-size: 12px; color: #a0aec0; margin-left: auto; }
 .coming-soon {
   grid-column: 1/-1;
   display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px;
-  background: #f7f8fa; color: #a0aec0;
+  background: #0d1117; color: #8b949e;
 }
-.coming-soon h2 { font-size: 17px; font-weight: 600; color: #4a5568; }
+.coming-soon h2 { font-size: 17px; font-weight: 600; color: #c9d1d9; }
 .coming-soon p  { font-size: 13px; }
 
 /* Left panel */
 .panel {
   padding: 16px 15px;
-  background: #fff;
-  border-right: 1px solid #e2e8f0;
+  background: #161b22;
+  border-right: 1px solid #30363d;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-.fl { display: block; font-size: 11px; font-weight: 700; color: #718096;
+.fl { display: block; font-size: 11px; font-weight: 700; color: #8b949e;
       text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
 
 input[type="text"], input[type="number"], textarea, select {
   width: 100%; padding: 8px 10px;
-  background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 6px;
-  color: #1a202c; font-size: 13px; outline: none; font-family: inherit;
+  background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+  color: #e2e8f0; font-size: 13px; outline: none; font-family: inherit;
   transition: border-color .15s, box-shadow .15s;
 }
 input:focus, textarea:focus, select:focus {
-  border-color: #4299e1; box-shadow: 0 0 0 3px rgba(66,153,225,.15);
+  border-color: #58a6ff; box-shadow: 0 0 0 3px rgba(88,166,255,.15);
 }
 textarea { resize: vertical; min-height: 100px; }
 select { cursor: pointer; }
 
 /* Drop zone */
 .drop-zone {
-  border: 2px dashed #cbd5e0; border-radius: 8px; padding: 16px;
-  text-align: center; cursor: pointer; position: relative; background: #f7fafc;
+  border: 2px dashed #30363d; border-radius: 8px; padding: 16px;
+  text-align: center; cursor: pointer; position: relative; background: #0d1117;
   transition: border-color .15s, background .15s;
 }
-.drop-zone:hover, .drop-zone.drag-over { border-color: #4299e1; background: #ebf8ff; }
+.drop-zone:hover, .drop-zone.drag-over { border-color: #58a6ff; background: #161b22; }
 .drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
 .drop-zone .dz-icon { font-size: 22px; margin-bottom: 3px; }
-.drop-zone .dz-hint { font-size: 12px; color: #a0aec0; }
-.drop-zone .dz-hint b { color: #4299e1; }
+.drop-zone .dz-hint { font-size: 12px; color: #8b949e; }
+.drop-zone .dz-hint b { color: #58a6ff; }
 
 .file-tag {
-  display: inline-block; padding: 2px 8px; background: #edf2f7;
-  border-radius: 4px; font-size: 11px; color: #4a5568; margin: 2px; border: 1px solid #e2e8f0;
+  display: inline-block; padding: 2px 8px; background: #21262d;
+  border-radius: 4px; font-size: 11px; color: #c9d1d9; margin: 2px; border: 1px solid #30363d;
 }
 
 /* Toggle buttons */
 .toggle-row {
-  display: flex; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; margin-bottom: 8px;
+  display: flex; border: 1px solid #30363d; border-radius: 6px; overflow: hidden; margin-bottom: 8px;
 }
 .toggle-row button {
   flex: 1; padding: 6px; font-size: 12px; font-weight: 600;
-  background: #f7fafc; border: none; color: #a0aec0; cursor: pointer;
+  background: #0d1117; border: none; color: #8b949e; cursor: pointer;
   transition: background .15s, color .15s;
 }
-.toggle-row button.active { background: #3182ce; color: #fff; }
+.toggle-row button.active { background: #1f6feb; color: #fff; }
 
 /* Reference rows */
 .ref-row {
   display: flex; align-items: center; gap: 7px;
-  padding: 6px 9px; background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 4px;
+  padding: 6px 9px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; margin-bottom: 4px;
 }
-.ref-row .ref-lbl { font-size: 11px; font-weight: 600; color: #4a5568; flex: 1; white-space: nowrap; }
+.ref-row .ref-lbl { font-size: 11px; font-weight: 600; color: #c9d1d9; flex: 1; white-space: nowrap; }
 .ref-row input[type="file"] { display: none; }
 .ref-choose {
-  padding: 3px 9px; font-size: 11px; background: #ebf8ff; border: 1px solid #bee3f8;
-  border-radius: 4px; color: #2b6cb0; cursor: pointer; white-space: nowrap; transition: background .15s;
+  padding: 3px 9px; font-size: 11px; background: #1c2d41; border: 1px solid #1f6feb;
+  border-radius: 4px; color: #58a6ff; cursor: pointer; white-space: nowrap; transition: background .15s;
 }
-.ref-choose:hover { background: #bee3f8; }
-.ref-fname { font-size: 10px; color: #a0aec0; width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.ref-choose:hover { background: #253d57; }
+.ref-fname { font-size: 10px; color: #8b949e; width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
 
 /* DB status badges */
 .db-badge {
   display: inline-block; padding: 2px 7px; border-radius: 10px;
   font-size: 10px; font-weight: 600; margin-right: 4px; margin-top: 2px;
 }
-.db-badge.ok  { background: #c6f6d5; color: #276749; }
-.db-badge.miss { background: #fed7d7; color: #9b2c2c; }
+.db-badge.ok  { background: #1a3a2a; color: #3fb950; }
+.db-badge.miss { background: #3d1f1f; color: #f85149; }
 
 /* Radio */
 .radio-group { display: flex; flex-direction: column; gap: 5px; }
 .radio-item {
   display: flex; align-items: flex-start; gap: 9px; padding: 7px 11px;
-  border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer;
-  background: #f7fafc; transition: border-color .15s, background .15s;
+  border: 1px solid #30363d; border-radius: 6px; cursor: pointer;
+  background: #0d1117; transition: border-color .15s, background .15s;
 }
-.radio-item:has(input:checked) { border-color: #4299e1; background: #ebf8ff; }
-.radio-item input[type="radio"] { margin-top: 2px; accent-color: #3182ce; }
+.radio-item:has(input:checked) { border-color: #58a6ff; background: #1c2d41; }
+.radio-item input[type="radio"] { margin-top: 2px; accent-color: #58a6ff; }
 .radio-item .rl { flex: 1; }
-.radio-item .rl strong { font-size: 13px; display: block; color: #2d3748; }
-.radio-item .rl small  { font-size: 11px; color: #a0aec0; }
+.radio-item .rl strong { font-size: 13px; display: block; color: #e2e8f0; }
+.radio-item .rl small  { font-size: 11px; color: #8b949e; }
 
 #s1-episode-input { margin-top: 6px; display: none; }
 
 .workers-row { display: flex; align-items: center; gap: 10px; }
 .workers-row input { width: 68px; }
-.workers-row span { font-size: 12px; color: #a0aec0; }
+.workers-row span { font-size: 12px; color: #8b949e; }
 
 .run-btn {
-  width: 100%; padding: 10px; background: #3182ce; border: none; border-radius: 8px;
+  width: 100%; padding: 10px; background: #1f6feb; border: none; border-radius: 8px;
   color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;
-  transition: background .15s, opacity .15s; box-shadow: 0 1px 3px rgba(49,130,206,.3);
+  transition: background .15s, opacity .15s; box-shadow: 0 1px 3px rgba(31,111,235,.3);
 }
-.run-btn:hover:not(:disabled) { background: #2b6cb0; }
+.run-btn:hover:not(:disabled) { background: #388bfd; }
 .run-btn:disabled { opacity: .5; cursor: not-allowed; }
 
-.status-msg { font-size: 12px; text-align: center; min-height: 16px; color: #a0aec0; }
-.status-msg.err { color: #e53e3e; }
-.status-msg.ok  { color: #38a169; }
+.status-msg { font-size: 12px; text-align: center; min-height: 16px; color: #8b949e; }
+.status-msg.err { color: #f85149; }
+.status-msg.ok  { color: #3fb950; }
 
-.divider { border: none; border-top: 1px solid #e2e8f0; }
+.divider { border: none; border-top: 1px solid #30363d; }
 
 /* Save-to-DB section */
 .save-db-row { display: flex; gap: 8px; align-items: flex-start; }
 .save-db-row input { flex: 1; }
 .save-db-btn {
-  padding: 8px 14px; background: #f0fff4; border: 1px solid #9ae6b4; border-radius: 6px;
-  color: #276749; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  padding: 8px 14px; background: #1a3a2a; border: 1px solid #238636; border-radius: 6px;
+  color: #3fb950; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
   transition: background .15s;
 }
-.save-db-btn:hover:not(:disabled) { background: #c6f6d5; }
+.save-db-btn:hover:not(:disabled) { background: #238636; color: #fff; }
 .save-db-btn:disabled { opacity: .5; cursor: not-allowed; }
 
 /* Right panel */
-.right { display: flex; flex-direction: column; overflow: hidden; background: #f7f8fa; }
+.right { display: flex; flex-direction: column; overflow: hidden; background: #0d1117; }
 
 .right-tabs {
-  display: flex; border-bottom: 1px solid #e2e8f0; padding: 0 20px;
-  gap: 2px; background: #fff; flex-shrink: 0;
+  display: flex; flex-wrap: wrap; border-bottom: 1px solid #30363d; padding: 0 12px;
+  gap: 2px; background: #161b22; flex-shrink: 0;
 }
 .tab-btn {
-  padding: 10px 16px; font-size: 13px; font-weight: 500; color: #a0aec0;
+  padding: 8px 10px; font-size: 12px; font-weight: 500; color: #8b949e;
   background: none; border: none; border-bottom: 2px solid transparent;
-  cursor: pointer; transition: color .15s, border-color .15s;
+  cursor: pointer; transition: color .15s, border-color .15s; white-space: nowrap;
 }
-.tab-btn.active { color: #2d3748; border-bottom-color: #3182ce; }
+.tab-btn.active { color: #e2e8f0; border-bottom-color: #58a6ff; }
 
 .tab-pane { display: none; flex: 1; overflow: hidden; flex-direction: column; }
 .tab-pane.active { display: flex; }
@@ -204,73 +205,122 @@ select { cursor: pointer; }
 .log-el {
   flex: 1; padding: 14px 18px; overflow-y: auto;
   font-family: 'Consolas', 'Fira Code', monospace; font-size: 12.5px;
-  line-height: 1.7; color: #4a5568; white-space: pre-wrap; word-break: break-all; background: #f7f8fa;
+  line-height: 1.7; color: #c9d1d9; white-space: pre-wrap; word-break: break-all; background: #0d1117;
 }
-.log-el .line-ok   { color: #276749; }
-.log-el .line-err  { color: #c53030; }
-.log-el .line-warn { color: #975a16; }
-.log-el .line-info { color: #2b6cb0; font-weight: 600; }
+.log-el .line-ok   { color: #3fb950; }
+.log-el .line-err  { color: #f85149; }
+.log-el .line-warn { color: #d29922; }
+.log-el .line-info { color: #58a6ff; font-weight: 600; }
 
 .files-content { padding: 20px; overflow-y: auto; flex: 1; }
 .file-section { margin-bottom: 20px; }
 .file-section h4 {
-  font-size: 11px; color: #a0aec0; font-weight: 700;
+  font-size: 11px; color: #8b949e; font-weight: 700;
   text-transform: uppercase; letter-spacing: .07em; margin-bottom: 8px;
 }
 .file-row {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 9px 14px; background: #fff; border: 1px solid #e2e8f0;
-  border-radius: 7px; margin-bottom: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  padding: 9px 14px; background: #161b22; border: 1px solid #30363d;
+  border-radius: 7px; margin-bottom: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.2);
 }
-.file-row .fname { font-size: 13px; color: #2d3748; font-family: monospace; }
+.file-row .fname { font-size: 13px; color: #e2e8f0; font-family: monospace; }
 .dl-btn {
-  padding: 4px 12px; background: #ebf8ff; border: 1px solid #bee3f8;
-  border-radius: 4px; color: #2b6cb0; font-size: 12px; cursor: pointer;
+  padding: 4px 12px; background: #1c2d41; border: 1px solid #1f6feb;
+  border-radius: 4px; color: #58a6ff; font-size: 12px; cursor: pointer;
   text-decoration: none; transition: background .15s;
 }
-.dl-btn:hover { background: #bee3f8; }
+.dl-btn:hover { background: #253d57; }
 
-.empty-msg { font-size: 13px; color: #cbd5e0; text-align: center; padding: 40px 0; }
+.empty-msg { font-size: 13px; color: #484f58; text-align: center; padding: 40px 0; }
 
 /* Progress bar */
-.progress-box { padding: 14px 16px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 18px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.progress-box { padding: 14px 16px; background: #161b22; border: 1px solid #30363d; border-radius: 8px; margin-bottom: 18px; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
 .progress-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
-.progress-label { font-size: 13px; font-weight: 600; color: #2d3748; }
-.progress-eta { font-size: 11px; color: #718096; font-family: monospace; }
-.progress-bar { height: 8px; background: #edf2f7; border-radius: 4px; overflow: hidden; }
-.progress-fill { height: 100%; background: linear-gradient(90deg, #3182ce, #63b3ed); transition: width .5s ease; }
-.progress-stage { margin-top: 8px; font-size: 11px; color: #4a5568; font-style: italic; }
+.progress-label { font-size: 13px; font-weight: 600; color: #e2e8f0; }
+.progress-eta { font-size: 11px; color: #8b949e; font-family: monospace; }
+.progress-bar { height: 8px; background: #21262d; border-radius: 4px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, #1f6feb, #58a6ff); transition: width .5s ease; }
+.progress-stage { margin-top: 8px; font-size: 11px; color: #8b949e; font-style: italic; }
+
+/* Image preview grid (read-only, larger) */
+.preview-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+.preview-card {
+  background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+  overflow: hidden; position: relative;
+}
+.preview-card img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+.preview-card .pv-bar {
+  padding: 6px 8px; display: flex; align-items: center; gap: 6px;
+  background: #161b22; border-top: 1px solid #30363d;
+}
+.preview-card .pv-num {
+  background: #1f6feb; color: #fff; font-size: 10px; font-weight: 700;
+  padding: 2px 7px; border-radius: 3px; font-family: monospace; flex-shrink: 0;
+}
+.preview-card .pv-line {
+  font-size: 11px; color: #8b949e; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; flex: 1;
+}
+.preview-card .pv-fail {
+  width: 100%; aspect-ratio: 1; display: flex; align-items: center;
+  justify-content: center; color: #484f58; font-size: 12px; background: #0d1117;
+}
+
+/* Shot review grid (smaller, selectable) */
+.shot-card {
+  background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+  overflow: hidden; cursor: pointer; transition: border-color .15s;
+  position: relative;
+}
+.shot-card:hover { border-color: #58a6ff; }
+.shot-card.selected { border-color: #f78166; border-width: 2px; }
+.shot-card img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+.shot-card .shot-num {
+  position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,.7);
+  color: #e2e8f0; font-size: 10px; font-weight: 700; padding: 2px 6px;
+  border-radius: 3px; font-family: monospace;
+}
+.shot-card .shot-fail {
+  width: 100%; aspect-ratio: 1; display: flex; align-items: center;
+  justify-content: center; color: #484f58; font-size: 11px;
+}
 
 /* Token bar */
 .token-bar {
   display: flex; align-items: center; padding: 0 20px; height: 38px;
-  background: #fff; border-top: 1px solid #e2e8f0; flex-shrink: 0;
+  background: #161b22; border-top: 1px solid #30363d; flex-shrink: 0;
 }
 .token-bar .tb-label {
-  color: #a0aec0; font-weight: 700; text-transform: uppercase;
+  color: #8b949e; font-weight: 700; text-transform: uppercase;
   letter-spacing: .06em; font-size: 10px; margin-right: 14px;
 }
 .token-bar .tb-item {
   display: flex; align-items: center; gap: 5px;
-  padding: 0 14px; border-right: 1px solid #e2e8f0; height: 100%;
+  padding: 0 14px; border-right: 1px solid #30363d; height: 100%;
 }
 .token-bar .tb-item:last-child { border-right: none; }
-.token-bar .tb-key { color: #a0aec0; font-size: 11px; }
-.token-bar .tb-val { color: #2d3748; font-weight: 700; font-family: monospace; font-size: 12px; }
+.token-bar .tb-key { color: #8b949e; font-size: 11px; }
+.token-bar .tb-val { color: #e2e8f0; font-weight: 700; font-family: monospace; font-size: 12px; }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Shot Generation Pipeline</h1>
+  <img src="/static/logo.png" alt="PocketFM" class="logo">
+  <h1>FRAMES</h1>
   <span>Argus &middot; <span id="hdr-model">loading...</span></span>
 </header>
 
 <nav class="stage-nav">
   <button class="stage-tab active" data-stage="stage1-view">Stage 1 &mdash; Reference Files</button>
   <button class="stage-tab"        data-stage="stage2-view">Stage 2 &mdash; Shot Breakdown</button>
-  <button class="stage-tab"        data-stage="stage3-view">Stage 3 &mdash; Image Generation</button>
-  <button class="stage-tab"        data-stage="stage4-view">Stage 4 &mdash; Video Generation</button>
+  <button class="stage-tab"        data-stage="stage3-view">Stage 3 &mdash; Script Audit</button>
+  <button class="stage-tab"        data-stage="stage4-view">Stage 4 &mdash; Reference Images</button>
+  <button class="stage-tab"        data-stage="stage5-view">Stage 5 &mdash; Image Generation</button>
+  <button class="stage-tab"        data-stage="stage6-view">Stage 6 &mdash; Video Generation</button>
 </nav>
 
 <div class="main">
@@ -450,9 +500,53 @@ select { cursor: pointer; }
 
   <!-- ══════════════════════════ Stage 3 ══ -->
   <div class="stage-view" id="stage3-view">
-    <div class="coming-soon">
-      <h2>Stage 3 &mdash; Image Generation</h2>
-      <p>Coming soon.</p>
+    <div class="panel">
+      <div>
+        <span class="fl">Shot Breakdown Excel(s)</span>
+        <div class="drop-zone" id="s3-excel-drop">
+          <input type="file" id="s3-excel-input" multiple accept=".xlsx">
+          <div class="dz-icon">📊</div>
+          <div class="dz-hint">Drag &amp; drop or <b>browse</b> &mdash; multiple OK<br>Stage 2 output .xlsx</div>
+        </div>
+        <div id="s3-excel-list" style="margin-top:6px"></div>
+      </div>
+      <div style="margin-top:10px">
+        <span class="fl">Episode Script</span>
+        <div class="drop-zone" id="s3-script-drop">
+          <input type="file" id="s3-script-input" accept=".txt,.md,.docx,.fountain">
+          <div class="dz-icon">📄</div>
+          <div class="dz-hint">Drag &amp; drop or <b>browse</b> &mdash; one script file<br>.txt &middot; .md &middot; .docx &middot; .fountain</div>
+        </div>
+        <div id="s3-script-list" style="margin-top:6px"></div>
+      </div>
+      <hr class="divider">
+      <div style="font-size:11px;color:#8b949e;line-height:1.5">
+        <strong style="color:#c9d1d9">Script Audit Checker</strong><br>
+        Audits Line column against source script &mdash; fixes paraphrased, invented &amp; truncated lines<br>
+        Uses Argus (Claude) &middot; Coverage check &middot; Auto-fix &amp; renumber
+      </div>
+      <button class="run-btn" id="s3-run-btn">&#9654;&nbsp; Run Stage 3</button>
+      <div class="status-msg" id="s3-status"></div>
+    </div>
+    <div class="right">
+      <div class="right-tabs">
+        <button class="tab-btn active" data-tab="s3-log-pane">Live Log</button>
+        <button class="tab-btn"        data-tab="s3-flags-pane">Flags</button>
+        <button class="tab-btn"        data-tab="s3-files-pane">Output</button>
+      </div>
+      <div class="tab-pane active" id="s3-log-pane">
+        <div class="log-el" id="s3-log"><span style="color:#484f58">Waiting for run&hellip;</span></div>
+      </div>
+      <div class="tab-pane" id="s3-flags-pane">
+        <div class="files-content" id="s3-flags-content">
+          <p class="empty-msg">No flags yet &mdash; run the audit first.</p>
+        </div>
+      </div>
+      <div class="tab-pane" id="s3-files-pane">
+        <div class="files-content" id="s3-files-content">
+          <p class="empty-msg">No output yet &mdash; run Stage 3 first.</p>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -460,40 +554,27 @@ select { cursor: pointer; }
   <div class="stage-view" id="stage4-view">
     <div class="panel">
       <div>
-        <span class="fl">Shot Breakdown Excel(s)</span>
-        <div class="drop-zone" id="s4-excel-drop">
-          <input type="file" id="s4-excel-input" multiple accept=".xlsx">
-          <div class="dz-icon">📊</div>
-          <div class="dz-hint">Drag &amp; drop or <b>browse</b> &mdash; multiple OK<br>.xlsx with image URLs + narration lines</div>
+        <span class="fl">Character Canvas</span>
+        <div class="drop-zone" id="s4-char-drop">
+          <input type="file" id="s4-char-input" accept=".md,.docx">
+          <div class="dz-icon">🧑</div>
+          <div class="dz-hint">Drag &amp; drop or <b>browse</b><br>character_canvas .md / .docx from Stage 1</div>
         </div>
-        <div id="s4-excel-list" style="margin-top:6px"></div>
+        <div id="s4-char-list" style="margin-top:6px"></div>
       </div>
       <div>
-        <span class="fl">Audio Narration(s)</span>
-        <div class="drop-zone" id="s4-audio-drop">
-          <input type="file" id="s4-audio-input" multiple accept=".mp3,.wav,.m4a,.aac">
-          <div class="dz-icon">🎙️</div>
-          <div class="dz-hint">Drag &amp; drop or <b>browse</b> &mdash; multiple OK<br>.mp3 &middot; .wav &middot; .m4a &middot; .aac</div>
+        <span class="fl">Location Reference</span>
+        <div class="drop-zone" id="s4-loc-drop">
+          <input type="file" id="s4-loc-input" accept=".md,.docx">
+          <div class="dz-icon">🏞️</div>
+          <div class="dz-hint">Drag &amp; drop or <b>browse</b><br>location_reference .md / .docx from Stage 1</div>
         </div>
-        <div id="s4-audio-list" style="margin-top:6px"></div>
-        <div id="s4-pair-info" style="margin-top:4px;font-size:10px;color:#a0aec0">Files are paired by order: 1st Excel + 1st Audio, 2nd + 2nd, etc.</div>
+        <div id="s4-loc-list" style="margin-top:6px"></div>
       </div>
-      <div>
-        <span class="fl">Subtitles</span>
-        <div class="toggle-row" id="s4-subs-row">
-          <button class="active" data-subs="yes" type="button">Yes</button>
-          <button               data-subs="no"  type="button">No</button>
-        </div>
-        <input type="hidden" id="s4-subs" value="yes">
-      </div>
-      <div id="s4-whisper-wrap">
-        <span class="fl">Whisper Model</span>
-        <select id="s4-whisper">
-          <option value="tiny.en">tiny.en &mdash; fastest</option>
-          <option value="base.en" selected>base.en &mdash; fast, good accuracy</option>
-          <option value="small.en">small.en &mdash; slower, better accuracy</option>
-          <option value="medium.en">medium.en &mdash; best accuracy</option>
-        </select>
+      <hr class="divider">
+      <div style="font-size:11px;color:#8b949e;line-height:1.5">
+        <strong style="color:#c9d1d9">Gemini Imagen 4 Fast</strong><br>
+        $0.02/image &middot; Generates reference images for each character &amp; location
       </div>
       <button class="run-btn" id="s4-run-btn">&#9654;&nbsp; Run Stage 4</button>
       <div class="status-msg" id="s4-status"></div>
@@ -501,14 +582,179 @@ select { cursor: pointer; }
     <div class="right">
       <div class="right-tabs">
         <button class="tab-btn active" data-tab="s4-log-pane">Live Log</button>
-        <button class="tab-btn"        data-tab="s4-files-pane">Output Files</button>
+        <button class="tab-btn"        data-tab="s4-preview-pane">Image Preview</button>
+        <button class="tab-btn"        data-tab="s4-review-pane">Review &amp; Feedback</button>
+        <button class="tab-btn"        data-tab="s4-files-pane">Output</button>
       </div>
       <div class="tab-pane active" id="s4-log-pane">
-        <div class="log-el" id="s4-log"><span style="color:#cbd5e0">Waiting for run&hellip;</span></div>
+        <div class="log-el" id="s4-log"><span style="color:#484f58">Waiting for run&hellip;</span></div>
+      </div>
+      <div class="tab-pane" id="s4-preview-pane">
+        <div style="padding:12px;overflow-y:auto;height:100%">
+          <div id="s4-preview-grid" class="preview-grid">
+            <p class="empty-msg">No images yet &mdash; run Stage 4 first.</p>
+          </div>
+        </div>
+      </div>
+      <div class="tab-pane" id="s4-review-pane">
+        <div id="s4-review-content" style="padding:12px;overflow-y:auto;height:100%;display:flex;flex-direction:column;gap:12px">
+          <div id="s4-img-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;overflow-y:auto;flex:1;min-height:0">
+            <p class="empty-msg">No images yet &mdash; run Stage 4 first.</p>
+          </div>
+          <div style="flex-shrink:0">
+            <span class="fl">Feedback</span>
+            <textarea id="s4-feedback" placeholder="e.g. Character 3: hair should be darker&#10;Location 5: wrong lighting, should be warmer&#10;Character 1: regenerate, face looks wrong" style="min-height:80px;max-height:120px"></textarea>
+            <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+              <button class="run-btn" id="s4-regen-btn" style="flex:none;padding:8px 16px;font-size:12px" disabled>&#x1f504; Regenerate</button>
+              <span class="status-msg" id="s4-regen-status" style="font-size:12px"></span>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="tab-pane" id="s4-files-pane">
         <div class="files-content" id="s4-files-content">
           <p class="empty-msg">No output yet &mdash; run Stage 4 first.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════ Stage 5 ══ -->
+  <div class="stage-view" id="stage5-view">
+    <div class="panel">
+      <div>
+        <span class="fl">Shot Breakdown Excel</span>
+        <div class="drop-zone" id="s5-excel-drop">
+          <input type="file" id="s5-excel-input" accept=".xlsx">
+          <div class="dz-icon">📊</div>
+          <div class="dz-hint">Drag &amp; drop or <b>browse</b><br>Stage 2 output .xlsx</div>
+        </div>
+        <div id="s5-excel-list" style="margin-top:6px"></div>
+      </div>
+      <div>
+        <span class="fl">Character Canvas / Reference Images (optional)</span>
+        <div class="drop-zone" id="s5-char-drop">
+          <input type="file" id="s5-char-input" multiple accept=".xlsx,.png,.jpg,.jpeg,.webp">
+          <div class="dz-icon">🧑</div>
+          <div class="dz-hint">Drag &amp; drop or <b>browse</b><br>Character Canvas .xlsx <i>or</i> image files (e.g. detective_john.png)</div>
+        </div>
+        <div id="s5-char-list" style="margin-top:6px"></div>
+      </div>
+      <div>
+        <span class="fl">Location Canvas / Reference Images (optional)</span>
+        <div class="drop-zone" id="s5-loc-drop">
+          <input type="file" id="s5-loc-input" multiple accept=".xlsx,.png,.jpg,.jpeg,.webp">
+          <div class="dz-icon">🏞️</div>
+          <div class="dz-hint">Drag &amp; drop or <b>browse</b><br>Location Canvas .xlsx <i>or</i> image files</div>
+        </div>
+        <div id="s5-loc-list" style="margin-top:6px"></div>
+      </div>
+      <hr class="divider">
+      <div style="font-size:11px;color:#8b949e;line-height:1.5">
+        <strong style="color:#c9d1d9">Gemini Imagen 4 Fast</strong><br>
+        $0.02/image &middot; Free tier: ~2 img/min<br>
+        Images saved to Preview_1 column
+      </div>
+      <button class="run-btn" id="s5-run-btn">&#9654;&nbsp; Run Stage 5</button>
+      <div class="status-msg" id="s5-status"></div>
+    </div>
+    <div class="right">
+      <div class="right-tabs">
+        <button class="tab-btn active" data-tab="s5-log-pane">Live Log</button>
+        <button class="tab-btn"        data-tab="s5-preview-pane">Image Preview</button>
+        <button class="tab-btn"        data-tab="s5-review-pane">Review &amp; Feedback</button>
+        <button class="tab-btn"        data-tab="s5-files-pane">Output</button>
+      </div>
+      <div class="tab-pane active" id="s5-log-pane">
+        <div class="log-el" id="s5-log"><span style="color:#484f58">Waiting for run&hellip;</span></div>
+      </div>
+      <div class="tab-pane" id="s5-preview-pane">
+        <div style="padding:12px;overflow-y:auto;height:100%">
+          <div id="s5-preview-grid" class="preview-grid">
+            <p class="empty-msg">No images yet &mdash; run Stage 5 first.</p>
+          </div>
+        </div>
+      </div>
+      <div class="tab-pane" id="s5-review-pane">
+        <div id="s5-review-content" style="padding:12px;overflow-y:auto;height:100%;display:flex;flex-direction:column;gap:12px">
+          <div id="s5-img-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;overflow-y:auto;flex:1;min-height:0">
+            <p class="empty-msg">No images yet &mdash; run Stage 5 first.</p>
+          </div>
+          <div style="flex-shrink:0">
+            <span class="fl">Feedback</span>
+            <textarea id="s5-feedback" placeholder="e.g. Shot 12: hair should be darker&#10;Shot 45: wrong background, should be indoors&#10;Shot 8, 19: regenerate, faces look wrong" style="min-height:80px;max-height:120px"></textarea>
+            <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+              <button class="run-btn" id="s5-regen-btn" style="flex:none;padding:8px 16px;font-size:12px" disabled>&#x1f504; Regenerate</button>
+              <span class="status-msg" id="s5-regen-status" style="font-size:12px"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="tab-pane" id="s5-files-pane">
+        <div class="files-content" id="s5-files-content">
+          <p class="empty-msg">No output yet &mdash; run Stage 5 first.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════ Stage 6 ══ -->
+  <div class="stage-view" id="stage6-view">
+    <div class="panel">
+      <div>
+        <span class="fl">Shot Breakdown Excel(s)</span>
+        <div class="drop-zone" id="s6-excel-drop">
+          <input type="file" id="s6-excel-input" multiple accept=".xlsx">
+          <div class="dz-icon">📊</div>
+          <div class="dz-hint">Drag &amp; drop or <b>browse</b> &mdash; multiple OK<br>.xlsx with image URLs + narration lines</div>
+        </div>
+        <div id="s6-excel-list" style="margin-top:6px"></div>
+      </div>
+      <div>
+        <span class="fl">Audio Narration(s)</span>
+        <div class="drop-zone" id="s6-audio-drop">
+          <input type="file" id="s6-audio-input" multiple accept=".mp3,.wav,.m4a,.aac">
+          <div class="dz-icon">🎙️</div>
+          <div class="dz-hint">Drag &amp; drop or <b>browse</b> &mdash; multiple OK<br>.mp3 &middot; .wav &middot; .m4a &middot; .aac</div>
+        </div>
+        <div id="s6-audio-list" style="margin-top:6px"></div>
+        <div id="s6-pair-info" style="margin-top:4px;font-size:10px;color:#a0aec0">Files are paired by order: 1st Excel + 1st Audio, 2nd + 2nd, etc.</div>
+      </div>
+      <div>
+        <span class="fl">Subtitles</span>
+        <div class="toggle-row" id="s6-subs-row">
+          <button class="active" data-subs="yes" type="button">Yes</button>
+          <button               data-subs="no"  type="button">No</button>
+        </div>
+        <input type="hidden" id="s6-subs" value="yes">
+      </div>
+      <div id="s6-sub-color-wrap">
+        <span class="fl">Subtitle Colour</span>
+        <div class="toggle-row" id="s6-color-row">
+          <button class="active" data-color="yellow" type="button" style="color:#FFC400;font-weight:700">Yellow</button>
+          <button               data-color="white"  type="button">White</button>
+        </div>
+        <input type="hidden" id="s6-sub-color" value="yellow">
+      </div>
+      <div id="s6-whisper-wrap">
+        <span class="fl">Whisper Model</span>
+        <div style="font-size:12px;color:#c9d1d9;padding:6px 0">base.en</div>
+        <input type="hidden" id="s6-whisper" value="base.en">
+      </div>
+      <button class="run-btn" id="s6-run-btn">&#9654;&nbsp; Run Stage 6</button>
+      <div class="status-msg" id="s6-status"></div>
+    </div>
+    <div class="right">
+      <div class="right-tabs">
+        <button class="tab-btn active" data-tab="s6-log-pane">Live Log</button>
+        <button class="tab-btn"        data-tab="s6-files-pane">Output Files</button>
+      </div>
+      <div class="tab-pane active" id="s6-log-pane">
+        <div class="log-el" id="s6-log"><span style="color:#cbd5e0">Waiting for run&hellip;</span></div>
+      </div>
+      <div class="tab-pane" id="s6-files-pane">
+        <div class="files-content" id="s6-files-content">
+          <p class="empty-msg">No output yet &mdash; run Stage 6 first.</p>
         </div>
       </div>
     </div>
@@ -526,10 +772,15 @@ select { cursor: pointer; }
 
 <script>
 // ── Model name ────────────────────────────────────────────────────────────────
+let LLM_INPUT_COST = 3.0, LLM_OUTPUT_COST = 15.0, LLM_MODEL_NAME = 'unknown';
 (async () => {
   try {
     const r = await fetch('/api/config');
-    document.getElementById('hdr-model').textContent = (await r.json()).model || 'unknown';
+    const cfg = await r.json();
+    LLM_MODEL_NAME = cfg.model || 'unknown';
+    LLM_INPUT_COST = cfg.llm_input_cost || 3.0;
+    LLM_OUTPUT_COST = cfg.llm_output_cost || 15.0;
+    document.getElementById('hdr-model').textContent = LLM_MODEL_NAME;
   } catch (_) { document.getElementById('hdr-model').textContent = 'unknown'; }
 })();
 
@@ -557,8 +808,102 @@ function updateTokenBar(t) {
   if (!t) return;
   document.getElementById('tok-input').textContent  = fmt(t.input);
   document.getElementById('tok-output').textContent = fmt(t.output);
-  document.getElementById('tok-total').textContent  = fmt(t.input + t.output);
+  const cost = (t.input * LLM_INPUT_COST + t.output * LLM_OUTPUT_COST) / 1000000;
+  document.getElementById('tok-total').textContent  = '$' + cost.toFixed(4);
   document.getElementById('tok-calls').textContent  = t.calls;
+  document.querySelector('#tok-input').previousElementSibling.textContent = 'Input';
+  document.querySelector('#tok-output').previousElementSibling.textContent = 'Output';
+  document.querySelector('#tok-total').previousElementSibling.textContent = 'Cost';
+  document.querySelector('#tok-calls').previousElementSibling.textContent = 'API Calls';
+}
+
+function updateTokenBarImages(t) {
+  if (!t) return;
+  const cost = (t.output * 0.02).toFixed(2);
+  document.querySelector('#tok-input').previousElementSibling.textContent = 'API Calls';
+  document.getElementById('tok-input').textContent  = fmt(t.input);
+  document.querySelector('#tok-output').previousElementSibling.textContent = 'Images';
+  document.getElementById('tok-output').textContent = fmt(t.output);
+  document.querySelector('#tok-total').previousElementSibling.textContent = 'Cost';
+  document.getElementById('tok-total').textContent  = '$' + cost;
+  document.querySelector('#tok-calls').previousElementSibling.textContent = '$/img';
+  document.getElementById('tok-calls').textContent  = '$0.02';
+}
+
+function tokenSummaryHtml(tokens, isImage, fileTokens, totalCost) {
+  if (!tokens) return '';
+  const card = 'text-align:center;padding:8px;background:#111;border-radius:6px';
+  const lbl  = 'color:#888;font-size:11px';
+  const val  = 'color:#e0e0e0;font-size:18px;font-weight:700';
+  const costStyle = 'color:#4ecdc4;font-size:18px;font-weight:700';
+
+  let html = '<div class="token-summary" style="margin-top:16px;padding:12px 14px;background:#1a1a2e;border:1px solid #333;border-radius:8px">';
+
+  // Total cost banner
+  const displayCost = totalCost != null ? totalCost : (isImage ? tokens.output * 0.02 : (tokens.input * LLM_INPUT_COST + tokens.output * LLM_OUTPUT_COST) / 1000000);
+  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">`;
+  html += `<div style="font-weight:600;color:#b0b0b0;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">Token Usage & Cost</div>`;
+  html += `<div style="padding:4px 12px;background:#0d4f4a;border-radius:12px;${costStyle}">Total: $${displayCost.toFixed(4)}</div>`;
+  html += `</div>`;
+
+  // Summary grid
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:10px">';
+  if (isImage) {
+    html += `<div style="${card}"><div style="${lbl}">API Calls</div><div style="${val}">${fmt(tokens.input)}</div></div>`;
+    html += `<div style="${card}"><div style="${lbl}">Images</div><div style="${val}">${fmt(tokens.output)}</div></div>`;
+    html += `<div style="${card}"><div style="${lbl}">Cost</div><div style="${costStyle}">$${(tokens.output * 0.02).toFixed(2)}</div></div>`;
+    html += `<div style="${card}"><div style="${lbl}">$/img</div><div style="${costStyle}">$0.02</div></div>`;
+  } else {
+    const inCost  = (tokens.input * LLM_INPUT_COST / 1000000).toFixed(4);
+    const outCost = (tokens.output * LLM_OUTPUT_COST / 1000000).toFixed(4);
+    html += `<div style="${card}"><div style="${lbl}">Input Tokens</div><div style="${val}">${fmt(tokens.input)}</div><div style="color:#666;font-size:10px;margin-top:2px">$${inCost}</div></div>`;
+    html += `<div style="${card}"><div style="${lbl}">Output Tokens</div><div style="${val}">${fmt(tokens.output)}</div><div style="color:#666;font-size:10px;margin-top:2px">$${outCost}</div></div>`;
+    html += `<div style="${card}"><div style="${lbl}">Total Tokens</div><div style="${val}">${fmt(tokens.input + tokens.output)}</div></div>`;
+    html += `<div style="${card}"><div style="${lbl}">API Calls</div><div style="${val}">${tokens.calls}</div></div>`;
+  }
+  html += '</div>';
+
+  // Per-file breakdown table
+  if (fileTokens && fileTokens.length > 0) {
+    html += '<div style="margin-top:6px;border-top:1px solid #333;padding-top:8px">';
+    html += '<div style="color:#888;font-size:11px;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.3px">Per-File Breakdown</div>';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:12px">';
+    html += '<tr style="color:#666;border-bottom:1px solid #2a2a2a">';
+    if (isImage) {
+      html += '<th style="text-align:left;padding:4px 6px">Item</th><th style="text-align:right;padding:4px 6px">Images</th><th style="text-align:right;padding:4px 6px">Cost</th>';
+    } else {
+      html += '<th style="text-align:left;padding:4px 6px">File</th><th style="text-align:right;padding:4px 6px">Input</th><th style="text-align:right;padding:4px 6px">Output</th><th style="text-align:right;padding:4px 6px">Calls</th><th style="text-align:right;padding:4px 6px">Cost</th>';
+    }
+    html += '</tr>';
+    for (const ft of fileTokens) {
+      html += '<tr style="border-bottom:1px solid #1a1a1a;color:#ccc">';
+      if (isImage) {
+        html += `<td style="padding:4px 6px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${ft.name}">${ft.name}</td>`;
+        html += `<td style="text-align:right;padding:4px 6px">${ft.images || 0}</td>`;
+        html += `<td style="text-align:right;padding:4px 6px;color:#4ecdc4">$${(ft.cost || 0).toFixed(4)}</td>`;
+      } else {
+        html += `<td style="padding:4px 6px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${ft.name}">${ft.name}</td>`;
+        html += `<td style="text-align:right;padding:4px 6px">${fmt(ft.input || 0)}</td>`;
+        html += `<td style="text-align:right;padding:4px 6px">${fmt(ft.output || 0)}</td>`;
+        html += `<td style="text-align:right;padding:4px 6px">${ft.calls || 0}</td>`;
+        html += `<td style="text-align:right;padding:4px 6px;color:#4ecdc4">$${(ft.cost || 0).toFixed(4)}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</table></div>';
+  }
+
+  // Pricing footnote
+  html += `<div style="margin-top:8px;color:#555;font-size:10px;text-align:right">`;
+  if (isImage) {
+    html += 'Imagen 4 Fast — $0.02/image';
+  } else {
+    html += `${LLM_MODEL_NAME} — $${LLM_INPUT_COST}/MTok input, $${LLM_OUTPUT_COST}/MTok output`;
+  }
+  html += '</div>';
+
+  html += '</div>';
+  return html;
 }
 
 function startPoll(jobId, onStatus) {
@@ -764,6 +1109,8 @@ s1RunBtn.addEventListener('click', async () => {
       if (d.status === 'done') {
         setStatus(s1StatusEl, `Done — ${d.files.length} file(s) generated.`, 'ok');
         s1RenderFiles(jobId, d.files);
+        const s1FE = document.getElementById('s1-files-content');
+        s1FE.innerHTML += tokenSummaryHtml(d.tokens, false, d.file_tokens, d.total_cost);
         switchTab(s1Right, 's1-files-pane');
       } else {
         setStatus(s1StatusEl, 'Pipeline failed — check the log.', 'err');
@@ -991,10 +1338,11 @@ s2RunBtn.addEventListener('click', async () => {
               <a class="dl-btn" href="/api/stage2/download/${jobId}?filename=${encodeURIComponent(name)}" download="${name}">Download</a></div>`;
           });
           html += '</div>';
+          html += tokenSummaryHtml(d.tokens, false, d.file_tokens, d.total_cost);
           el.innerHTML = html;
           switchTab(s2Right, 's2-files-pane');
         } else {
-          el.innerHTML = '<p class="empty-msg">No Excel files — see Live Log for results.</p>';
+          el.innerHTML = '<p class="empty-msg">No Excel files — see Live Log for results.</p>' + tokenSummaryHtml(d.tokens, false, d.file_tokens, d.total_cost);
         }
       } else {
         setStatus(s2StatusEl, 'Pipeline failed — check the log.', 'err');
@@ -1004,43 +1352,258 @@ s2RunBtn.addEventListener('click', async () => {
   es.onerror = () => { es.close(); s2RunBtn.disabled = false; setStatus(s2StatusEl, 'Stream error.', 'err'); };
 });
 
+// ═══════════════════════════════════════ Stage 3 ══════════════════════════════
+const s3LogEl    = document.getElementById('s3-log');
+const s3RunBtn   = document.getElementById('s3-run-btn');
+const s3StatusEl = document.getElementById('s3-status');
+const s3FilesEl  = document.getElementById('s3-files-content');
+const s3FlagsEl  = document.getElementById('s3-flags-content');
+let s3Poll = null;
+let s3JobId = null;
+
+wireDropZone(document.getElementById('s3-excel-drop'), document.getElementById('s3-excel-input'), document.getElementById('s3-excel-list'), true);
+wireDropZone(document.getElementById('s3-script-drop'), document.getElementById('s3-script-input'), document.getElementById('s3-script-list'), false);
+
+function s3RenderFlags(flags, jobId) {
+  const fixes = flags.fixes || [];
+  const deletes = flags.delete_rows || [];
+  const cov = flags.coverage || {};
+  const notes = flags.notes || [];
+  const total = fixes.length + deletes.length;
+
+  const typeLabels = {A:'Paraphrased', B:'Invented', C:'Truncated', D:'Intermediate mismatch'};
+  const typeColors = {A:'#f6ad55', B:'#fc8181', C:'#63b3ed', D:'#b794f4'};
+
+  let html = '';
+
+  // summary banner
+  html += `<div style="background:#1a2332;border:1px solid #2d3748;border-radius:8px;padding:12px 16px;margin-bottom:14px">`;
+  html += `<div style="font-size:15px;font-weight:600;color:#e2e8f0;margin-bottom:6px">${total} issue${total!==1?'s':''} flagged</div>`;
+  html += `<div style="font-size:12px;color:#a0aec0">`;
+  if (fixes.length) html += `${fixes.length} line fix${fixes.length!==1?'es':''} `;
+  if (deletes.length) html += `${deletes.length} row${deletes.length!==1?'s':''} to delete `;
+  if (cov.coverage_pct != null) html += `&middot; Script coverage: ~${cov.coverage_pct}%`;
+  html += `</div></div>`;
+
+  // coverage details
+  const missing = cov.missing_beats || [];
+  const dupes = cov.duplicates || [];
+  if (missing.length || dupes.length) {
+    html += `<div style="background:#1a2332;border:1px solid #2d3748;border-radius:8px;padding:12px 16px;margin-bottom:14px">`;
+    html += `<div style="font-size:13px;font-weight:600;color:#e2e8f0;margin-bottom:8px">Coverage Check</div>`;
+    if (missing.length) {
+      html += `<div style="font-size:11px;color:#fc8181;margin-bottom:4px">${missing.length} script beat(s) not covered:</div>`;
+      missing.forEach(m => { html += `<div style="font-size:11px;color:#a0aec0;padding-left:10px;margin-bottom:2px">&bull; ${String(m).substring(0,120)}</div>`; });
+    }
+    if (dupes.length) {
+      html += `<div style="font-size:11px;color:#f6ad55;margin-top:6px;margin-bottom:4px">${dupes.length} duplicate Line(s):</div>`;
+      dupes.forEach(d => { html += `<div style="font-size:11px;color:#a0aec0;padding-left:10px;margin-bottom:2px">&bull; Shots ${(d.shots||[]).join(', ')}: ${String(d.line||'').substring(0,80)}</div>`; });
+    }
+    html += `</div>`;
+  }
+
+  // issues table
+  if (total > 0) {
+    html += `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">`;
+    html += `<thead><tr style="border-bottom:1px solid #2d3748;color:#a0aec0;text-align:left">`;
+    html += `<th style="padding:6px 8px;width:60px">Shot</th>`;
+    html += `<th style="padding:6px 8px;width:100px">Type</th>`;
+    html += `<th style="padding:6px 8px">Original Line</th>`;
+    html += `<th style="padding:6px 8px">Fix / Action</th>`;
+    html += `<th style="padding:6px 8px;width:180px">Reason</th>`;
+    html += `</tr></thead><tbody>`;
+
+    fixes.forEach(f => {
+      const pType = f.problem || '?';
+      const col = typeColors[pType] || '#a0aec0';
+      html += `<tr style="border-bottom:1px solid #1a202c">`;
+      html += `<td style="padding:6px 8px;color:#e2e8f0;font-weight:600">${f.shot_num}</td>`;
+      html += `<td style="padding:6px 8px"><span style="background:${col}22;color:${col};padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px">${pType}: ${typeLabels[pType]||pType}</span></td>`;
+      html += `<td style="padding:6px 8px;color:#a0aec0;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(f.original_line||'').replace(/"/g,'&quot;')}">${f.original_line||''}</td>`;
+      html += `<td style="padding:6px 8px;color:#68d391;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(f.fixed_line||'').replace(/"/g,'&quot;')}">${f.fixed_line||''}</td>`;
+      html += `<td style="padding:6px 8px;color:#718096;font-size:11px">${f.reason||''}</td>`;
+      html += `</tr>`;
+    });
+
+    deletes.forEach(d => {
+      html += `<tr style="border-bottom:1px solid #1a202c;background:#2d1f1f">`;
+      html += `<td style="padding:6px 8px;color:#e2e8f0;font-weight:600">${d.shot_num}</td>`;
+      html += `<td style="padding:6px 8px"><span style="background:#fc818122;color:#fc8181;padding:2px 8px;border-radius:4px;font-weight:600;font-size:11px">B: Invented</span></td>`;
+      html += `<td style="padding:6px 8px;color:#a0aec0;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(d.original_line||'').replace(/"/g,'&quot;')}">${d.original_line||''}</td>`;
+      html += `<td style="padding:6px 8px;color:#fc8181;font-weight:600">DELETE ROW</td>`;
+      html += `<td style="padding:6px 8px;color:#718096;font-size:11px">${d.reason||''}</td>`;
+      html += `</tr>`;
+    });
+
+    html += `</tbody></table></div>`;
+  }
+
+  // notes
+  if (notes.length) {
+    html += `<div style="margin-top:12px;padding:8px 12px;background:#1a2332;border:1px solid #2d3748;border-radius:6px;font-size:11px;color:#a0aec0">`;
+    notes.forEach(n => { html += `<div style="margin-bottom:4px">${String(n).substring(0,250)}</div>`; });
+    html += `</div>`;
+  }
+
+  // fix button
+  if (total > 0) {
+    html += `<div style="margin-top:16px;text-align:center">`;
+    html += `<button id="s3-fix-btn" style="background:#48bb78;color:#1a202c;border:none;padding:10px 28px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;transition:background .15s">Fix All Issues (${total})</button>`;
+    html += `</div>`;
+  }
+
+  s3FlagsEl.innerHTML = html;
+
+  // wire fix button
+  const fixBtn = document.getElementById('s3-fix-btn');
+  if (fixBtn) {
+    fixBtn.addEventListener('click', async () => {
+      fixBtn.disabled = true;
+      fixBtn.textContent = 'Applying fixes…';
+      setStatus(s3StatusEl, 'Applying fixes…');
+      try {
+        const r = await fetch(`/api/stage3/fix/${jobId}`, { method: 'POST' });
+        const d = await r.json();
+        if (!r.ok) { setStatus(s3StatusEl, d.error || 'Fix failed', 'err'); fixBtn.disabled = false; fixBtn.textContent = `Fix All Issues (${total})`; return; }
+        setStatus(s3StatusEl, 'Done — fixes applied.', 'ok');
+        fixBtn.textContent = 'Fixes applied';
+        fixBtn.style.background = '#2d3748';
+        fixBtn.style.color = '#68d391';
+
+        // show output tab
+        const outputs = d.output_files || [];
+        const stats = d.stats || {};
+        const s3Right = document.getElementById('stage3-view').querySelector('.right');
+        if (outputs.length) {
+          const sr = await fetch(`/api/status/${jobId}`);
+          const sd = await sr.json();
+          let ohtml = '<div class="file-section"><h4>Download Audited Output</h4>';
+          outputs.forEach(name => {
+            ohtml += `<div class="file-row"><span class="fname">${name}</span>
+              <a class="dl-btn" href="/api/stage3/download/${jobId}?filename=${encodeURIComponent(name)}" download="${name}">Download</a></div>`;
+          });
+          ohtml += '</div>';
+          ohtml += `<div style="background:#1a2332;border:1px solid #2d3748;border-radius:8px;padding:12px 16px;margin-top:12px;font-size:12px;color:#a0aec0">`;
+          ohtml += `<strong style="color:#68d391">${stats.fixed || 0}</strong> lines fixed, <strong style="color:#fc8181">${stats.deleted || 0}</strong> rows deleted`;
+          ohtml += `</div>`;
+          ohtml += tokenSummaryHtml(sd.tokens, false, sd.file_tokens, sd.total_cost);
+          s3FilesEl.innerHTML = ohtml;
+          switchTab(s3Right, 's3-files-pane');
+        }
+      } catch(e) { setStatus(s3StatusEl, 'Fix error: ' + e.message, 'err'); fixBtn.disabled = false; fixBtn.textContent = `Fix All Issues (${total})`; }
+    });
+  }
+}
+
+s3RunBtn.addEventListener('click', async () => {
+  const excelFiles = Array.from(document.getElementById('s3-excel-input').files);
+  const scriptFiles = Array.from(document.getElementById('s3-script-input').files);
+  if (!excelFiles.length) { setStatus(s3StatusEl, 'Upload at least one shot breakdown Excel.', 'err'); return; }
+  if (!scriptFiles.length) { setStatus(s3StatusEl, 'Upload the episode script file.', 'err'); return; }
+
+  const fd = new FormData();
+  excelFiles.forEach(f => fd.append('excels', f));
+  scriptFiles.forEach(f => fd.append('scripts', f));
+
+  s3RunBtn.disabled = true;
+  setStatus(s3StatusEl, 'Starting script audit…');
+  s3LogEl.innerHTML = '';
+  s3FlagsEl.innerHTML = '<p class="empty-msg">Auditing…</p>';
+  s3FilesEl.innerHTML = '<p class="empty-msg">No output yet.</p>';
+  logLine(s3LogEl, 'Uploading files…');
+
+  const s3Right = document.getElementById('stage3-view').querySelector('.right');
+  switchTab(s3Right, 's3-log-pane');
+
+  let jobId;
+  try {
+    const res = await fetch('/api/stage3/run', { method: 'POST', body: fd });
+    const d = await res.json();
+    if (!res.ok) { setStatus(s3StatusEl, d.error || 'Server error', 'err'); s3RunBtn.disabled = false; return; }
+    jobId = d.job_id;
+    s3JobId = jobId;
+  } catch(e) { setStatus(s3StatusEl, 'Network error: ' + e.message, 'err'); s3RunBtn.disabled = false; return; }
+
+  setStatus(s3StatusEl, 'Running…');
+  if (s3Poll) clearInterval(s3Poll);
+
+  s3Poll = startPoll(jobId, d => {
+    if (d.tokens) updateTokenBar(d.tokens);
+    if (d.status === 'running' && d.progress && d.progress.total) {
+      const p = d.progress;
+      const pct = p.total > 0 ? Math.round(p.completed / p.total * 100) : 0;
+      setStatus(s3StatusEl, `${p.stage || ''} — ${p.completed}/${p.total} (${pct}%)`);
+    }
+  });
+
+  const es = new EventSource(`/api/stream/${jobId}`);
+  es.onmessage = e => logLine(s3LogEl, e.data);
+  es.addEventListener('done', async () => {
+    es.close(); s3RunBtn.disabled = false;
+    if (s3Poll) { clearInterval(s3Poll); s3Poll = null; }
+    try {
+      const r = await fetch(`/api/status/${jobId}`);
+      const d = await r.json();
+      if (d.tokens) updateTokenBar(d.tokens);
+
+      if (d.status === 'flagged' && d.flags) {
+        const nIssues = (d.flags.fixes||[]).length + (d.flags.delete_rows||[]).length;
+        setStatus(s3StatusEl, `Audit complete — ${nIssues} issue${nIssues!==1?'s':''} flagged. Review and fix.`, 'ok');
+        s3RenderFlags(d.flags, jobId);
+        switchTab(s3Right, 's3-flags-pane');
+      } else if (d.status === 'done') {
+        const outputs = (d.output_files && d.output_files.length) ? d.output_files
+                      : (d.output_file ? [d.output_file] : []);
+        setStatus(s3StatusEl, 'Audit complete — no issues found.', 'ok');
+        if (outputs.length) {
+          let html = '<div class="file-section"><h4>Download Output (clean)</h4>';
+          outputs.forEach(name => {
+            html += `<div class="file-row"><span class="fname">${name}</span>
+              <a class="dl-btn" href="/api/stage3/download/${jobId}?filename=${encodeURIComponent(name)}" download="${name}">Download</a></div>`;
+          });
+          html += '</div>';
+          html += tokenSummaryHtml(d.tokens, false, d.file_tokens, d.total_cost);
+          s3FilesEl.innerHTML = html;
+          switchTab(s3Right, 's3-files-pane');
+        }
+        s3FlagsEl.innerHTML = '<p class="empty-msg">No issues found — all Lines match the script.</p>';
+      } else {
+        setStatus(s3StatusEl, 'Audit failed — check the log.', 'err');
+      }
+    } catch(_) { setStatus(s3StatusEl, 'Could not fetch results.', 'err'); }
+  });
+  es.onerror = () => { es.close(); s3RunBtn.disabled = false; setStatus(s3StatusEl, 'Stream error.', 'err'); };
+});
+
 // ═══════════════════════════════════════ Stage 4 ══════════════════════════════
 const s4LogEl    = document.getElementById('s4-log');
 const s4RunBtn   = document.getElementById('s4-run-btn');
 const s4StatusEl = document.getElementById('s4-status');
+const s4FilesEl  = document.getElementById('s4-files-content');
 let s4Poll = null;
+let s4CurrentJobId = null;
+const s4PreviewGrid = document.getElementById('s4-preview-grid');
+const s4ImgGrid     = document.getElementById('s4-img-grid');
+const s4RegenBtn    = document.getElementById('s4-regen-btn');
+const s4RegenStat   = document.getElementById('s4-regen-status');
+const s4Feedback    = document.getElementById('s4-feedback');
 
-wireDropZone(document.getElementById('s4-excel-drop'), document.getElementById('s4-excel-input'), document.getElementById('s4-excel-list'), true);
-wireDropZone(document.getElementById('s4-audio-drop'), document.getElementById('s4-audio-input'), document.getElementById('s4-audio-list'), true);
-
-document.querySelectorAll('#s4-subs-row button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#s4-subs-row button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('s4-subs').value = btn.dataset.subs;
-    document.getElementById('s4-whisper-wrap').style.display = btn.dataset.subs === 'yes' ? '' : 'none';
-  });
-});
+wireDropZone(document.getElementById('s4-char-drop'), document.getElementById('s4-char-input'), document.getElementById('s4-char-list'), false);
+wireDropZone(document.getElementById('s4-loc-drop'),  document.getElementById('s4-loc-input'),  document.getElementById('s4-loc-list'),  false);
 
 s4RunBtn.addEventListener('click', async () => {
-  const excelFiles = Array.from(document.getElementById('s4-excel-input').files);
-  const audioFiles = Array.from(document.getElementById('s4-audio-input').files);
-  if (!excelFiles.length) { setStatus(s4StatusEl, 'Upload at least one Excel file.', 'err'); return; }
-  if (!audioFiles.length) { setStatus(s4StatusEl, 'Upload at least one audio file.', 'err'); return; }
-  if (excelFiles.length !== audioFiles.length) {
-    setStatus(s4StatusEl, `Mismatch: ${excelFiles.length} Excel file(s) but ${audioFiles.length} audio file(s). Counts must match.`, 'err'); return;
-  }
+  const charFiles = Array.from(document.getElementById('s4-char-input').files);
+  const locFiles  = Array.from(document.getElementById('s4-loc-input').files);
+  if (!charFiles.length && !locFiles.length) { setStatus(s4StatusEl, 'Upload at least one file.', 'err'); return; }
 
   const fd = new FormData();
-  excelFiles.forEach(f => fd.append('excels', f));
-  audioFiles.forEach(f => fd.append('audios', f));
-  fd.append('subs', document.getElementById('s4-subs').value);
-  fd.append('whisper_model', document.getElementById('s4-whisper').value);
+  charFiles.forEach(f => fd.append('char_canvas', f));
+  locFiles.forEach(f => fd.append('loc_canvas', f));
 
   s4RunBtn.disabled = true;
-  setStatus(s4StatusEl, `Starting ${excelFiles.length} pair(s)…`);
+  setStatus(s4StatusEl, 'Starting reference image generation…');
   s4LogEl.innerHTML = '';
-  logLine(s4LogEl, `Uploading ${excelFiles.length} Excel + ${audioFiles.length} audio files…`);
+  logLine(s4LogEl, 'Uploading files…');
 
   const s4Right = document.getElementById('stage4-view').querySelector('.right');
   switchTab(s4Right, 's4-log-pane');
@@ -1051,32 +1614,19 @@ s4RunBtn.addEventListener('click', async () => {
     const d = await res.json();
     if (!res.ok) { setStatus(s4StatusEl, d.error || 'Server error', 'err'); s4RunBtn.disabled = false; return; }
     jobId = d.job_id;
+    s4CurrentJobId = jobId;
   } catch(e) { setStatus(s4StatusEl, 'Network error: ' + e.message, 'err'); s4RunBtn.disabled = false; return; }
 
   setStatus(s4StatusEl, 'Running…');
   if (s4Poll) clearInterval(s4Poll);
-  const s4FilesEl = document.getElementById('s4-files-content');
 
-  let s4ShownFiles = [];
   s4Poll = startPoll(jobId, d => {
-    const files = (d.output_files && d.output_files.length) ? d.output_files : [];
-    let html = '';
-    if (files.length > 0) {
-      s4ShownFiles = [...files];
-      html += `<div class="file-section"><h4>Videos Ready (${files.length}) — download now</h4>`;
-      files.forEach(name => {
-        html += `<div class="file-row"><span class="fname">${name}</span>
-          <a class="dl-btn" href="/api/stage4/download/${jobId}?filename=${encodeURIComponent(name)}" download="${name}">Download</a></div>`;
-      });
-      html += '</div>';
-    }
+    updateTokenBarImages(d.tokens);
     if (d.status === 'running' && d.progress && d.progress.total) {
       const p = d.progress;
       const pct = p.total > 0 ? Math.round(p.completed / p.total * 100) : 0;
-      html += `<div style="margin-top:8px"><strong>${p.stage || 'Working...'}</strong> — ${pct}%</div>`;
+      setStatus(s4StatusEl, `${p.completed}/${p.total} images (${pct}%)`);
     }
-    if (html) s4FilesEl.innerHTML = html;
-    if (files.length > 0) switchTab(s4Right, 's4-files-pane');
   });
 
   const es = new EventSource(`/api/stream/${jobId}`);
@@ -1087,26 +1637,512 @@ s4RunBtn.addEventListener('click', async () => {
     try {
       const r = await fetch(`/api/status/${jobId}`);
       const d = await r.json();
+      updateTokenBarImages(d.tokens);
       if (d.status === 'done') {
         const outputs = (d.output_files && d.output_files.length) ? d.output_files
                       : (d.output_file ? [d.output_file] : []);
-        setStatus(s4StatusEl, outputs.length ? `Done — ${outputs.length} video(s)` : 'Done.', 'ok');
-        if (outputs.length) {
-          let html = `<div class="file-section"><h4>Generated Videos (${outputs.length})</h4>`;
-          outputs.forEach(name => {
-            html += `<div class="file-row"><span class="fname">${name}</span>
-              <a class="dl-btn" href="/api/stage4/download/${jobId}?filename=${encodeURIComponent(name)}" download="${name}">Download</a></div>`;
-          });
-          html += '</div>';
-          s4FilesEl.innerHTML = html;
-          switchTab(s4Right, 's4-files-pane');
-        }
+        const cost = d.tokens ? '$' + (d.tokens.output * 0.02).toFixed(2) : '';
+        setStatus(s4StatusEl, outputs.length ? `Done — ${d.tokens?.output || 0} images generated ${cost ? '| ' + cost : ''}` : 'Done.', 'ok');
+        if (jobId) s4RefreshAll(jobId);
+        if (outputs.length) switchTab(s4Right, 's4-preview-pane');
       } else {
         setStatus(s4StatusEl, 'Pipeline failed — check the log.', 'err');
       }
     } catch(_) { setStatus(s4StatusEl, 'Could not fetch results.', 'err'); }
   });
   es.onerror = () => { es.close(); s4RunBtn.disabled = false; setStatus(s4StatusEl, 'Stream error.', 'err'); };
+});
+
+function s4RefreshAll(jobId) {
+  s4CurrentJobId = jobId;
+  s4LoadPreviewGrid(jobId);
+  s4LoadReviewGrid(jobId);
+  s4RefreshOutputFiles(jobId);
+}
+
+function s4LoadPreviewGrid(jobId) {
+  fetch(`/api/stage4/shots/${jobId}`).then(r => r.json()).then(items => {
+    if (!Array.isArray(items) || !items.length) return;
+    const ts = Date.now();
+    let html = '';
+    items.forEach(s => {
+      if (s.has_image) {
+        html += `<div class="preview-card">
+          <img src="${s.preview_url}?t=${ts}" alt="${s.name}" loading="lazy">
+          <div class="pv-bar"><span class="pv-num">${s.num}</span><span class="pv-line">${s.name}</span></div>
+        </div>`;
+      } else {
+        html += `<div class="preview-card">
+          <div class="pv-fail">No image</div>
+          <div class="pv-bar"><span class="pv-num">${s.num}</span><span class="pv-line">${s.name}</span></div>
+        </div>`;
+      }
+    });
+    s4PreviewGrid.innerHTML = html;
+  }).catch(() => {});
+}
+
+function s4LoadReviewGrid(jobId) {
+  fetch(`/api/stage4/shots/${jobId}`).then(r => r.json()).then(items => {
+    if (!Array.isArray(items)) return;
+    const ts = Date.now();
+    let html = '';
+    items.forEach(s => {
+      if (s.has_image) {
+        html += `<div class="shot-card" data-shot="${s.num}" title="${s.name}">
+          <span class="shot-num">#${s.num}</span>
+          <img src="${s.preview_url}?t=${ts}" alt="${s.name}" loading="lazy">
+        </div>`;
+      } else {
+        html += `<div class="shot-card" data-shot="${s.num}" title="${s.name}">
+          <span class="shot-num">#${s.num}</span>
+          <div class="shot-fail">No image</div>
+        </div>`;
+      }
+    });
+    s4ImgGrid.innerHTML = html || '<p class="empty-msg">No items found.</p>';
+    s4RegenBtn.disabled = false;
+
+    s4ImgGrid.querySelectorAll('.shot-card').forEach(card => {
+      card.addEventListener('click', () => {
+        card.classList.toggle('selected');
+        const sn = card.dataset.shot;
+        if (card.classList.contains('selected') && !s4Feedback.value.includes(`Item ${sn}`)) {
+          s4Feedback.value += (s4Feedback.value ? '\n' : '') + `Item ${sn}: `;
+          s4Feedback.focus();
+        }
+      });
+    });
+  }).catch(() => {});
+}
+
+function s4RefreshOutputFiles(jobId) {
+  fetch(`/api/status/${jobId}`).then(r => r.json()).then(d => {
+    const outputs = (d.output_files && d.output_files.length) ? d.output_files
+                  : (d.output_file ? [d.output_file] : []);
+    let html = '';
+    if (outputs.length) {
+      html += `<div class="file-section"><h4>Download Excel</h4>`;
+      outputs.forEach(name => {
+        html += `<div class="file-row"><span class="fname">${name}</span>
+          <a class="dl-btn" href="/api/stage4/download/${jobId}?filename=${encodeURIComponent(name)}" download="${name}">Download</a></div>`;
+      });
+      html += '</div>';
+    }
+    html += tokenSummaryHtml(d.tokens, true, d.file_tokens, d.total_cost);
+    if (html) s4FilesEl.innerHTML = html;
+  }).catch(() => {});
+}
+
+s4RegenBtn.addEventListener('click', async () => {
+  const fb = s4Feedback.value.trim();
+  if (!fb) { s4RegenStat.textContent = 'Type feedback first.'; s4RegenStat.style.color = '#f85149'; return; }
+  if (!s4CurrentJobId) { s4RegenStat.textContent = 'No active job.'; s4RegenStat.style.color = '#f85149'; return; }
+
+  s4RegenBtn.disabled = true;
+  s4RegenStat.textContent = 'Submitting...';
+  s4RegenStat.style.color = '#8b949e';
+
+  try {
+    const res = await fetch('/api/stage4/regen', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ job_id: s4CurrentJobId, feedback: fb }),
+    });
+    const d = await res.json();
+    if (!res.ok) { s4RegenStat.textContent = d.error || 'Error'; s4RegenStat.style.color = '#f85149'; s4RegenBtn.disabled = false; return; }
+
+    const regenJobId = d.job_id;
+    s4RegenStat.textContent = `Regenerating ${d.items.length} item(s)...`;
+    s4RegenStat.style.color = '#58a6ff';
+
+    const s4Right = document.getElementById('stage4-view').querySelector('.right');
+    switchTab(s4Right, 's4-log-pane');
+
+    const regenEs = new EventSource(`/api/stream/${regenJobId}`);
+    regenEs.onmessage = e => logLine(s4LogEl, e.data);
+    regenEs.addEventListener('done', () => {
+      regenEs.close();
+      s4RegenBtn.disabled = false;
+      s4RegenStat.textContent = 'Regeneration complete!';
+      s4RegenStat.style.color = '#3fb950';
+      s4Feedback.value = '';
+      s4ImgGrid.querySelectorAll('.shot-card.selected').forEach(c => c.classList.remove('selected'));
+      s4RefreshAll(s4CurrentJobId);
+      switchTab(s4Right, 's4-preview-pane');
+    });
+    regenEs.onerror = () => {
+      regenEs.close(); s4RegenBtn.disabled = false;
+      s4RegenStat.textContent = 'Stream error.'; s4RegenStat.style.color = '#f85149';
+    };
+
+    const regenPoll = startPoll(regenJobId, rd => {
+      updateTokenBarImages(rd.tokens);
+      if (rd.status !== 'running') clearInterval(regenPoll);
+    });
+
+  } catch(e) {
+    s4RegenStat.textContent = 'Network error: ' + e.message;
+    s4RegenStat.style.color = '#f85149';
+    s4RegenBtn.disabled = false;
+  }
+});
+
+// ═══════════════════════════════════════ Stage 5 ══════════════════════════════
+const s5LogEl    = document.getElementById('s5-log');
+const s5RunBtn   = document.getElementById('s5-run-btn');
+const s5StatusEl = document.getElementById('s5-status');
+let s5Poll = null;
+
+wireDropZone(document.getElementById('s5-excel-drop'), document.getElementById('s5-excel-input'), document.getElementById('s5-excel-list'), false);
+wireDropZone(document.getElementById('s5-char-drop'),  document.getElementById('s5-char-input'),  document.getElementById('s5-char-list'),  true);
+wireDropZone(document.getElementById('s5-loc-drop'),   document.getElementById('s5-loc-input'),   document.getElementById('s5-loc-list'),   true);
+
+s5RunBtn.addEventListener('click', async () => {
+  const excelFiles = Array.from(document.getElementById('s5-excel-input').files);
+  if (!excelFiles.length) { setStatus(s5StatusEl, 'Upload a shot breakdown Excel.', 'err'); return; }
+
+  const fd = new FormData();
+  fd.append('excels', excelFiles[0]);
+  Array.from(document.getElementById('s5-char-input').files).forEach(f => fd.append('char_images', f));
+  Array.from(document.getElementById('s5-loc-input').files).forEach(f => fd.append('loc_images', f));
+
+  s5RunBtn.disabled = true;
+  setStatus(s5StatusEl, 'Starting image generation…');
+  s5LogEl.innerHTML = '';
+  logLine(s5LogEl, 'Uploading files…');
+
+  const s5Right = document.getElementById('stage5-view').querySelector('.right');
+  switchTab(s5Right, 's5-log-pane');
+
+  let jobId;
+  try {
+    const res = await fetch('/api/stage5/run', { method: 'POST', body: fd });
+    const d = await res.json();
+    if (!res.ok) { setStatus(s5StatusEl, d.error || 'Server error', 'err'); s5RunBtn.disabled = false; return; }
+    jobId = d.job_id;
+    s5CurrentJobId = jobId;
+  } catch(e) { setStatus(s5StatusEl, 'Network error: ' + e.message, 'err'); s5RunBtn.disabled = false; return; }
+
+  setStatus(s5StatusEl, 'Running…');
+  if (s5Poll) clearInterval(s5Poll);
+  const s5FilesEl = document.getElementById('s5-files-content');
+
+  s5Poll = startPoll(jobId, d => {
+    updateTokenBarImages(d.tokens);
+    const files = (d.output_files && d.output_files.length) ? d.output_files : [];
+    let html = '';
+    if (d.status === 'running' && d.progress && d.progress.total) {
+      const p = d.progress;
+      const pct = p.total > 0 ? Math.round(p.completed / p.total * 100) : 0;
+      html += `<div class="progress-box">
+        <div class="progress-row">
+          <span class="progress-label">${p.completed}/${p.total} shots</span>
+          <span class="progress-eta">${pct}%</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+        ${p.stage ? `<div class="progress-stage">${p.stage}</div>` : ''}
+      </div>`;
+    }
+    if (files.length > 0) {
+      html += `<div class="file-section"><h4>Output Excel</h4>`;
+      files.forEach(name => {
+        html += `<div class="file-row"><span class="fname">${name}</span>
+          <a class="dl-btn" href="/api/stage5/download/${jobId}?filename=${encodeURIComponent(name)}" download="${name}">Download</a></div>`;
+      });
+      html += '</div>';
+    }
+    if (html) s5FilesEl.innerHTML = html;
+    if (files.length > 0) switchTab(s5Right, 's5-files-pane');
+  });
+
+  const es = new EventSource(`/api/stream/${jobId}`);
+  es.onmessage = e => logLine(s5LogEl, e.data);
+  es.addEventListener('done', async () => {
+    es.close(); s5RunBtn.disabled = false;
+    if (s5Poll) { clearInterval(s5Poll); s5Poll = null; }
+    try {
+      const r = await fetch(`/api/status/${jobId}`);
+      const d = await r.json();
+      updateTokenBarImages(d.tokens);
+      if (d.status === 'done') {
+        const outputs = (d.output_files && d.output_files.length) ? d.output_files
+                      : (d.output_file ? [d.output_file] : []);
+        const cost = d.tokens ? '$' + (d.tokens.output * 0.02).toFixed(2) : '';
+        setStatus(s5StatusEl, outputs.length ? `Done — ${d.tokens?.output || 0} images generated ${cost ? '| ' + cost : ''}` : 'Done.', 'ok');
+        if (jobId) s5RefreshAll(jobId);
+        if (outputs.length || d.sheet_url) {
+          switchTab(s5Right, 's5-preview-pane');
+        }
+      } else {
+        setStatus(s5StatusEl, 'Pipeline failed — check the log.', 'err');
+      }
+    } catch(_) { setStatus(s5StatusEl, 'Could not fetch results.', 'err'); }
+  });
+  es.onerror = () => { es.close(); s5RunBtn.disabled = false; setStatus(s5StatusEl, 'Stream error.', 'err'); };
+});
+
+// ── Stage 5 Preview + Review & Feedback ──────────────────────────────────────
+let s5CurrentJobId = null;
+const s5PreviewGrid = document.getElementById('s5-preview-grid');
+const s5ImgGrid     = document.getElementById('s5-img-grid');
+const s5RegenBtn    = document.getElementById('s5-regen-btn');
+const s5RegenStat   = document.getElementById('s5-regen-status');
+const s5Feedback    = document.getElementById('s5-feedback');
+
+function s5RefreshAll(jobId) {
+  s5CurrentJobId = jobId;
+  s5LoadPreviewGrid(jobId);
+  s5LoadReviewGrid(jobId);
+  s5RefreshOutputFiles(jobId);
+}
+
+function s5LoadPreviewGrid(jobId) {
+  fetch(`/api/stage5/shots/${jobId}`).then(r => r.json()).then(shots => {
+    if (!Array.isArray(shots) || !shots.length) return;
+    const ts = Date.now();
+    let html = '';
+    shots.forEach(s => {
+      if (s.has_image) {
+        html += `<div class="preview-card">
+          <img src="${s.preview_1}?t=${ts}" alt="Shot ${s.num}" loading="lazy">
+          <div class="pv-bar"><span class="pv-num">${s.num}</span><span class="pv-line">${s.line}</span></div>
+        </div>`;
+      } else {
+        html += `<div class="preview-card">
+          <div class="pv-fail">No image</div>
+          <div class="pv-bar"><span class="pv-num">${s.num}</span><span class="pv-line">${s.line}</span></div>
+        </div>`;
+      }
+    });
+    s5PreviewGrid.innerHTML = html;
+  }).catch(() => {});
+}
+
+function s5LoadReviewGrid(jobId) {
+  fetch(`/api/stage5/shots/${jobId}`).then(r => r.json()).then(shots => {
+    if (!Array.isArray(shots)) return;
+    const ts = Date.now();
+    let html = '';
+    shots.forEach(s => {
+      if (s.has_image) {
+        html += `<div class="shot-card" data-shot="${s.num}" title="Shot ${s.num}: ${s.line}">
+          <span class="shot-num">#${s.num}</span>
+          <img src="${s.preview_1}?t=${ts}" alt="Shot ${s.num}" loading="lazy">
+        </div>`;
+      } else {
+        html += `<div class="shot-card" data-shot="${s.num}" title="Shot ${s.num}: ${s.line}">
+          <span class="shot-num">#${s.num}</span>
+          <div class="shot-fail">No image</div>
+        </div>`;
+      }
+    });
+    s5ImgGrid.innerHTML = html || '<p class="empty-msg">No shots found.</p>';
+    s5RegenBtn.disabled = false;
+
+    s5ImgGrid.querySelectorAll('.shot-card').forEach(card => {
+      card.addEventListener('click', () => {
+        card.classList.toggle('selected');
+        const sn = card.dataset.shot;
+        if (card.classList.contains('selected') && !s5Feedback.value.includes(`Shot ${sn}`)) {
+          s5Feedback.value += (s5Feedback.value ? '\n' : '') + `Shot ${sn}: `;
+          s5Feedback.focus();
+        }
+      });
+    });
+  }).catch(() => {});
+}
+
+function s5RefreshOutputFiles(jobId) {
+  fetch(`/api/status/${jobId}`).then(r => r.json()).then(d => {
+    const outputs = (d.output_files && d.output_files.length) ? d.output_files
+                  : (d.output_file ? [d.output_file] : []);
+    let html = '';
+    if (d.sheet_url) {
+      html += `<div class="file-section"><h4>Google Sheet</h4>
+        <div class="file-row"><span class="fname">View in Google Sheets</span>
+        <a class="dl-btn" href="${d.sheet_url}" target="_blank" rel="noopener">Open Sheet</a></div></div>`;
+    }
+    if (outputs.length) {
+      html += `<div class="file-section"><h4>Download Excel</h4>`;
+      outputs.forEach(name => {
+        html += `<div class="file-row"><span class="fname">${name}</span>
+          <a class="dl-btn" href="/api/stage5/download/${jobId}?filename=${encodeURIComponent(name)}" download="${name}">Download</a></div>`;
+      });
+      html += '</div>';
+    }
+    html += tokenSummaryHtml(d.tokens, true, d.file_tokens, d.total_cost);
+    if (html) s5FilesEl.innerHTML = html;
+  }).catch(() => {});
+}
+
+s5RegenBtn.addEventListener('click', async () => {
+  const fb = s5Feedback.value.trim();
+  if (!fb) { s5RegenStat.textContent = 'Type feedback first.'; s5RegenStat.style.color = '#f85149'; return; }
+  if (!s5CurrentJobId) { s5RegenStat.textContent = 'No active job.'; s5RegenStat.style.color = '#f85149'; return; }
+
+  s5RegenBtn.disabled = true;
+  s5RegenStat.textContent = 'Submitting...';
+  s5RegenStat.style.color = '#8b949e';
+
+  try {
+    const res = await fetch('/api/stage5/regen', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ job_id: s5CurrentJobId, feedback: fb }),
+    });
+    const d = await res.json();
+    if (!res.ok) { s5RegenStat.textContent = d.error || 'Error'; s5RegenStat.style.color = '#f85149'; s5RegenBtn.disabled = false; return; }
+
+    const regenJobId = d.job_id;
+    s5RegenStat.textContent = `Regenerating ${d.shots.length} shot(s)...`;
+    s5RegenStat.style.color = '#58a6ff';
+
+    switchTab(s5Right, 's5-log-pane');
+
+    const regenEs = new EventSource(`/api/stream/${regenJobId}`);
+    regenEs.onmessage = e => logLine(s5LogEl, e.data);
+    regenEs.addEventListener('done', () => {
+      regenEs.close();
+      s5RegenBtn.disabled = false;
+      s5RegenStat.textContent = 'Regeneration complete!';
+      s5RegenStat.style.color = '#3fb950';
+      s5Feedback.value = '';
+      s5ImgGrid.querySelectorAll('.shot-card.selected').forEach(c => c.classList.remove('selected'));
+      s5RefreshAll(s5CurrentJobId);
+      switchTab(s5Right, 's5-preview-pane');
+    });
+    regenEs.onerror = () => {
+      regenEs.close(); s5RegenBtn.disabled = false;
+      s5RegenStat.textContent = 'Stream error.'; s5RegenStat.style.color = '#f85149';
+    };
+
+    const regenPoll = startPoll(regenJobId, rd => {
+      updateTokenBarImages(rd.tokens);
+      if (rd.status !== 'running') clearInterval(regenPoll);
+    });
+
+  } catch(e) {
+    s5RegenStat.textContent = 'Network error: ' + e.message;
+    s5RegenStat.style.color = '#f85149';
+    s5RegenBtn.disabled = false;
+  }
+});
+
+// ═══════════════════════════════════════ Stage 6 ══════════════════════════════
+const s6LogEl    = document.getElementById('s6-log');
+const s6RunBtn   = document.getElementById('s6-run-btn');
+const s6StatusEl = document.getElementById('s6-status');
+let s6Poll = null;
+
+wireDropZone(document.getElementById('s6-excel-drop'), document.getElementById('s6-excel-input'), document.getElementById('s6-excel-list'), true);
+wireDropZone(document.getElementById('s6-audio-drop'), document.getElementById('s6-audio-input'), document.getElementById('s6-audio-list'), true);
+
+document.querySelectorAll('#s6-subs-row button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#s6-subs-row button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('s6-subs').value = btn.dataset.subs;
+    const subsOn = btn.dataset.subs === 'yes';
+    document.getElementById('s6-whisper-wrap').style.display = subsOn ? '' : 'none';
+    document.getElementById('s6-sub-color-wrap').style.display = subsOn ? '' : 'none';
+  });
+});
+document.querySelectorAll('#s6-color-row button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#s6-color-row button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('s6-sub-color').value = btn.dataset.color;
+  });
+});
+
+s6RunBtn.addEventListener('click', async () => {
+  const excelFiles = Array.from(document.getElementById('s6-excel-input').files);
+  const audioFiles = Array.from(document.getElementById('s6-audio-input').files);
+  if (!excelFiles.length) { setStatus(s6StatusEl, 'Upload at least one Excel file.', 'err'); return; }
+  if (!audioFiles.length) { setStatus(s6StatusEl, 'Upload at least one audio file.', 'err'); return; }
+  if (excelFiles.length !== audioFiles.length) {
+    setStatus(s6StatusEl, `Mismatch: ${excelFiles.length} Excel file(s) but ${audioFiles.length} audio file(s). Counts must match.`, 'err'); return;
+  }
+
+  const fd = new FormData();
+  excelFiles.forEach(f => fd.append('excels', f));
+  audioFiles.forEach(f => fd.append('audios', f));
+  fd.append('subs', document.getElementById('s6-subs').value);
+  fd.append('sub_color', document.getElementById('s6-sub-color').value);
+  fd.append('whisper_model', document.getElementById('s6-whisper').value);
+
+  s6RunBtn.disabled = true;
+  setStatus(s6StatusEl, `Starting ${excelFiles.length} pair(s)…`);
+  s6LogEl.innerHTML = '';
+  logLine(s6LogEl, `Uploading ${excelFiles.length} Excel + ${audioFiles.length} audio files…`);
+
+  const s6Right = document.getElementById('stage6-view').querySelector('.right');
+  switchTab(s6Right, 's6-log-pane');
+
+  let jobId;
+  try {
+    const res = await fetch('/api/stage6/run', { method: 'POST', body: fd });
+    const d = await res.json();
+    if (!res.ok) { setStatus(s6StatusEl, d.error || 'Server error', 'err'); s6RunBtn.disabled = false; return; }
+    jobId = d.job_id;
+  } catch(e) { setStatus(s6StatusEl, 'Network error: ' + e.message, 'err'); s6RunBtn.disabled = false; return; }
+
+  setStatus(s6StatusEl, 'Running…');
+  if (s6Poll) clearInterval(s6Poll);
+  const s6FilesEl = document.getElementById('s6-files-content');
+
+  let s6ShownFiles = [];
+  s6Poll = startPoll(jobId, d => {
+    const files = (d.output_files && d.output_files.length) ? d.output_files : [];
+    let html = '';
+    if (files.length > 0) {
+      s6ShownFiles = [...files];
+      html += `<div class="file-section"><h4>Videos Ready (${files.length}) — download now</h4>`;
+      files.forEach(name => {
+        html += `<div class="file-row"><span class="fname">${name}</span>
+          <a class="dl-btn" href="/api/stage6/download/${jobId}?filename=${encodeURIComponent(name)}" download="${name}">Download</a></div>`;
+      });
+      html += '</div>';
+    }
+    if (d.status === 'running' && d.progress && d.progress.total) {
+      const p = d.progress;
+      const pct = p.total > 0 ? Math.round(p.completed / p.total * 100) : 0;
+      html += `<div style="margin-top:8px"><strong>${p.stage || 'Working...'}</strong> — ${pct}%</div>`;
+    }
+    if (html) s6FilesEl.innerHTML = html;
+    if (files.length > 0) switchTab(s6Right, 's6-files-pane');
+  });
+
+  const es = new EventSource(`/api/stream/${jobId}`);
+  es.onmessage = e => logLine(s6LogEl, e.data);
+  es.addEventListener('done', async () => {
+    es.close(); s6RunBtn.disabled = false;
+    if (s6Poll) { clearInterval(s6Poll); s6Poll = null; }
+    try {
+      const r = await fetch(`/api/status/${jobId}`);
+      const d = await r.json();
+      if (d.status === 'done') {
+        const outputs = (d.output_files && d.output_files.length) ? d.output_files
+                      : (d.output_file ? [d.output_file] : []);
+        setStatus(s6StatusEl, outputs.length ? `Done — ${outputs.length} video(s)` : 'Done.', 'ok');
+        if (outputs.length) {
+          let html = `<div class="file-section"><h4>Generated Videos (${outputs.length})</h4>`;
+          outputs.forEach(name => {
+            html += `<div class="file-row"><span class="fname">${name}</span>
+              <a class="dl-btn" href="/api/stage6/download/${jobId}?filename=${encodeURIComponent(name)}" download="${name}">Download</a></div>`;
+          });
+          html += '</div>';
+          html += tokenSummaryHtml(d.tokens, false, d.file_tokens, d.total_cost);
+          s6FilesEl.innerHTML = html;
+          switchTab(s6Right, 's6-files-pane');
+        }
+      } else {
+        setStatus(s6StatusEl, 'Pipeline failed — check the log.', 'err');
+      }
+    } catch(_) { setStatus(s6StatusEl, 'Could not fetch results.', 'err'); }
+  });
+  es.onerror = () => { es.close(); s6RunBtn.disabled = false; setStatus(s6StatusEl, 'Stream error.', 'err'); };
 });
 
 </script>
