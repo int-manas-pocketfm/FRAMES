@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Start-Sleep -Seconds 1; $pid5000 = \\(Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue\\).OwningProcess; if \\($pid5000\\) { Stop-Process -Id $pid5000 -Force }; Set-Location \"C:\\\\Users\\\\manas\\\\OneDrive\\\\Desktop\\\\POCKETFM PACKETS\\\\Shot-Generation-website\"; & \"C:\\\\Users\\\\manas\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python312\\\\python.exe\" server.py)",
+      "PowerShell($p = \\(Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue\\).OwningProcess; if \\($p -and $p -ne 0\\) { Stop-Process -Id $p -Force -ErrorAction SilentlyContinue }; Start-Sleep -Seconds 1; Set-Location \"C:\\\\Users\\\\manas\\\\OneDrive\\\\Desktop\\\\POCKETFM PACKETS\\\\Shot-Generation-website\"; & \"C:\\\\Users\\\\manas\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python312\\\\python.exe\" server.py)"
+    ]
+  }
+}
