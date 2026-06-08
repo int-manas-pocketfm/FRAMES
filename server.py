@@ -492,8 +492,8 @@ For each shot, assign:
 **SENSORY & POV SHOTS — CRITICAL RULE:**
 When the script describes something a character experiences internally — pain, light flashing, sound hitting them — the Shot Description must always anchor to the character's physical face or body. The internal experience is rendered as a visible effect on them, never as a standalone abstract image.
 
-**OUTFIT RULE — CRITICAL:**
-The character's outfit must be stated explicitly inside the Shot Description prompt itself. Every Shot Description that includes a character must contain their outfit.
+**OUTFIT RULE — CRITICAL (see also Rule 14B):**
+The character's outfit must be stated explicitly inside the Shot Description prompt itself with FULL color and fabric details. Every Shot Description that includes a character must contain their outfit. Never use generic labels like "sleepwear", "formal attire", "casual clothes" — always specify exact garments with colors (e.g. "cream silk nightgown with lace trim", "charcoal wool three-piece suit with white cotton dress shirt and navy silk tie"). Once you write a character's outfit in their first shot of a scene, copy that EXACT outfit string into every subsequent shot of that character in the same scene.
 
 **BODY POSITION ANCHOR ON CLOSE-UPS — CRITICAL:**
 Even on extreme close-ups, state: (1) the character's full body position, (2) a soft background anchor describing the location.
@@ -564,7 +564,8 @@ Style: cinematic, photorealistic, 8K, shallow depth of field, single-frame still
 • Mood -> [atmosphere phrase]
 
 **PART 2 — Character & Location Details:**
-[CHARACTER NAME]: [build + age], [hair], [face/eyes], wearing [full outfit — exact garments, colors, fabric, fit], [wounds/marks if visible], [pose/action in this shot]
+[CHARACTER NAME]: [build + age], [hair], [face/eyes], wearing [full outfit — exact garments with explicit colors and fabric, e.g. "navy linen blazer over white cotton henley and dark brown leather belt with khaki chinos" NOT "smart casual"], [wounds/marks if visible], [pose/action in this shot]
+NOTE: The outfit string here must be IDENTICAL across all shots of this character in the same scene. Copy-paste, do not rewrite.
 
 [LOCATION NAME]: [brief type descriptor]. [Architecture/features]. [Time of day], [light source and quality], [color temperature]. Background: [what is visible]. [Atmosphere or "No atmospheric effects"]. Mood: [one evocative phrase].
 
@@ -754,6 +755,19 @@ Turning Point: eye-level, slow push-in, shallow depth of field, background fades
 
 ## 14. CHARACTER VISUAL CONSISTENCY RULE
 Always repeat in every prompt: hair style/color, clothing color/style, eye color, physical build, signature accessory. Never rephrase core character identifiers shot-to-shot.
+
+---
+
+## 14B. OUTFIT EXPLICITNESS & SCENE CONSISTENCY RULE
+
+**Explicitness:** Never use generic outfit labels like "sleepwear", "formal wear", "casual clothes", or "uniform". Always specify the FULL outfit with explicit colors, fabric, and cut — e.g. "cream silk nightgown with lace trim" not "sleepwear", "charcoal tailored three-piece suit with white dress shirt and navy silk tie" not "formal attire".
+
+**Scene consistency:** Within the same scene, every shot of the same character MUST use the IDENTICAL outfit description — word for word, same colors, same garments, same details. When you write the first shot of a character in a scene, that outfit description is LOCKED for every subsequent shot of that character in that scene. Copy-paste it, do not rewrite it.
+
+**How to apply:**
+1. First shot of a character in a scene → write the full explicit outfit (colors, fabric, cut, accessories).
+2. Every subsequent shot of that character in the SAME scene → copy that exact outfit string into the Shot Description and Shot Detail. Do not abbreviate, do not synonym-swap colors.
+3. Outfit changes ONLY when the script explicitly describes a change or a new scene begins.
 
 ---
 
@@ -1494,6 +1508,46 @@ MAKE_EXCEL_MSG = (
 )
 
 
+BEAT_EXTRACTION_SYSTEM = (
+    "You are a script parser. Your job is to split a script into numbered beats.\n\n"
+    "A beat is a single sentence or distinct narrative unit from the script. "
+    "Every sentence, every line of dialogue (including its dialogue tag), "
+    "every action description, and every transition is its own beat.\n\n"
+    "RULES:\n"
+    "1. Copy each beat VERBATIM from the script — do not paraphrase, summarize, or reword.\n"
+    "2. Preserve exact punctuation, capitalization, and spelling.\n"
+    "3. Do not merge multiple sentences into one beat.\n"
+    "4. Do not split a single sentence across multiple beats UNLESS it contains "
+    "distinct clauses with different subjects or actions (e.g. 'He ran forward, and she ducked behind the wall' = 2 beats).\n"
+    "5. Include everything — scene descriptions, transitions, short lines, internal monologue.\n"
+    "6. Number each beat sequentially starting from 1.\n\n"
+    "OUTPUT FORMAT:\n"
+    "```beats\n"
+    "1. [exact sentence from script]\n"
+    "2. [exact sentence from script]\n"
+    "...\n"
+    "```\n\n"
+    "End with: BEAT COUNT: [N] total beats.\n"
+    "Do not add commentary or analysis. Only output the numbered beat list."
+)
+
+
+def _extract_beats(script_text: str, episode_name: str) -> str:
+    """Pass 1: Extract numbered beats from the script as an explicit checklist."""
+    _log(f"  ── Pass 1: Beat extraction for '{episode_name}' ──")
+    messages = [{"role": "user", "content": f"Split this script into numbered beats:\n\n{script_text}"}]
+    response = call_api_chat(BEAT_EXTRACTION_SYSTEM, messages, label=f"beats:{episode_name}")
+    if not response:
+        _log(f"  !! Beat extraction failed — proceeding without beat list")
+        return ""
+    beat_count = 0
+    for line in response.splitlines():
+        line = line.strip()
+        if line and line[0].isdigit() and ". " in line:
+            beat_count += 1
+    _log(f"  ok  {beat_count} beats extracted from script")
+    return response
+
 
 def _build_stage2_user_msg(ref_files: dict, script_text: str, episode_name: str) -> str:
     ref_parts = [
@@ -1537,7 +1591,22 @@ def _process_one_episode(job_dir: Path, script_text: str, episode_name: str, ref
     max_shots  = int(word_count / 100 * 9)
     _log(f"  Script: {word_count:,} words  |  Required shots: {min_shots}–{max_shots}")
 
-    # ── Inject mandatory target into the user message ─────────────────────────
+    # ── Pass 1: Beat extraction ────────────────────────────────────────────────
+    beat_list = _extract_beats(script_text, episode_name)
+
+    # ── Inject mandatory target + beat checklist into the user message ────────
+    beat_checklist_block = ""
+    if beat_list:
+        beat_checklist_block = (
+            f"\n\n---\n"
+            f"## SCRIPT BEAT CHECKLIST — MANDATORY COVERAGE\n"
+            f"The following is the complete list of beats extracted from this script. "
+            f"Every beat MUST appear as a verbatim `line` field in at least one shot. "
+            f"Use this as your checklist — work through it sequentially and do not skip any beat.\n\n"
+            f"{beat_list}\n"
+            f"---"
+        )
+
     shot_target_block = (
         f"\n\n---\n"
         f"## MANDATORY SHOT TARGET FOR THIS EPISODE\n"
@@ -1550,13 +1619,14 @@ def _process_one_episode(job_dir: Path, script_text: str, episode_name: str, ref
         f"3. Two characters doing different things in the same sentence = two shots.\n"
         f"4. An internal reaction followed by an external reaction = two shots.\n"
         f"5. If your Step 1 total is below {min_shots}, you have not split aggressively enough — go back.\n"
+        f"6. Cross-check every beat in the SCRIPT BEAT CHECKLIST above — if a beat has no shot, add one.\n"
         f"---"
     )
-    user_msg = _build_stage2_user_msg(ref_files, script_text, episode_name) + shot_target_block
+    user_msg = _build_stage2_user_msg(ref_files, script_text, episode_name) + beat_checklist_block + shot_target_block
     messages = [{"role": "user", "content": user_msg}]
 
-    # ── Step 1–5 breakdown ────────────────────────────────────────────────────
-    _log(f"  Running 5-step breakdown for '{episode_name}'...")
+    # ── Step 1–5 breakdown (Pass 2: shot generation with beat checklist) ─────
+    _log(f"  ── Pass 2: Shot breakdown for '{episode_name}' (with beat checklist) ──")
     response = call_api_chat(STAGE2_SYSTEM, messages, label=f"breakdown:{episode_name}")
     if not response:
         raise RuntimeError(f"No breakdown response for {episode_name}")
@@ -1571,6 +1641,14 @@ def _process_one_episode(job_dir: Path, script_text: str, episode_name: str, ref
         _log("  !! Breakdown message not detected — proceeding anyway")
 
     # ── MAKE EXCEL — coverage + count requirements baked in, no extra call ────
+    beat_reminder = ""
+    if beat_list:
+        beat_reminder = (
+            "\n\nREMINDER — BEAT CHECKLIST: The numbered beat list from Pass 1 is your coverage checklist. "
+            "As you output each batch, mentally check off each beat. After your final batch, every beat "
+            "must have at least one shot. If you reach ALL SHOTS COMPLETE and any beat is uncovered, "
+            "you are NOT done.\n"
+        )
     make_excel_with_target = (
         MAKE_EXCEL_MSG +
         f"\n\nMANDATORY: This episode requires {min_shots}–{max_shots} shots ({word_count:,}-word script). "
@@ -1580,6 +1658,7 @@ def _process_one_episode(job_dir: Path, script_text: str, episode_name: str, ref
         f"--- SCRIPT START ---\n{script_text}\n--- SCRIPT END ---\n"
         f"Go through this script paragraph by paragraph. Every word between SCRIPT START and SCRIPT END "
         f"must appear in a `line` field in your output."
+        + beat_reminder
     )
     messages.append({"role": "user", "content": make_excel_with_target})
 
