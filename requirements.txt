@@ -1,0 +1,7 @@
+flask
+httpx
+openpyxl
+Pillow
+faster-whisper
+gspread
+google-auth
