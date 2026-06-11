@@ -58,6 +58,10 @@ ARGUS_MODEL      = os.environ.get("ARGUS_MODEL", "")
 GEMINI_API_KEY   = os.environ.get("GEMINI_API_KEY", "")
 MADEYE_API_KEY   = os.environ.get("MADEYE_API_KEY", "")
 MADEYE_BASE_URL  = os.environ.get("MADEYE_BASE_URL", "").rstrip("/")
+_raw_madeye_keys = os.environ.get("MADEYE_API_KEYS", "")
+MADEYE_API_KEYS  = [k.strip() for k in _raw_madeye_keys.split(",") if k.strip()]
+if not MADEYE_API_KEYS and MADEYE_API_KEY:
+    MADEYE_API_KEYS = [MADEYE_API_KEY]
 
 SUPABASE_URL     = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY     = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_ANON_KEY", "")
@@ -69,6 +73,45 @@ STAGGER_SEC      = 5
 
 SHOW_LEVEL_STEMS = {"show_tone_bible", "character_canvas", "location_reference"}
 SHOW_LEVEL_FILES = {s + ".md" for s in SHOW_LEVEL_STEMS}
+
+
+# ── MadEye key pool — thread-safe per-key rate limiting ──────────────────────
+
+class MadEyeKeyPool:
+    def __init__(self, keys: list, rate_limit_sec: float = 32.0):
+        self._keys = keys
+        self._rate_limit = rate_limit_sec
+        self._lock = threading.Lock()
+        self._last_used = {k: 0.0 for k in keys}
+        self._condition = threading.Condition(self._lock)
+
+    def acquire(self, timeout: float = 300.0) -> str:
+        deadline = time.time() + timeout
+        with self._condition:
+            while True:
+                now = time.time()
+                best_key = None
+                best_wait = float('inf')
+                for k in self._keys:
+                    wait = max(0.0, self._rate_limit - (now - self._last_used[k]))
+                    if wait < best_wait:
+                        best_wait = wait
+                        best_key = k
+                if best_wait <= 0:
+                    self._last_used[best_key] = now
+                    return best_key
+                remaining = deadline - now
+                if remaining <= 0:
+                    raise TimeoutError("No MadEye key available within timeout")
+                self._condition.wait(timeout=min(best_wait + 0.1, remaining))
+
+    def release_notify(self):
+        with self._condition:
+            self._condition.notify_all()
+
+    @property
+    def key_count(self) -> int:
+        return len(self._keys)
 
 
 # ── Embedded prompts — Stage 1 ────────────────────────────────────────────────
@@ -1311,70 +1354,73 @@ def _is_show_level_file(filename: str) -> bool:
     return any(filename.startswith(stem + "_") for stem in SHOW_LEVEL_STEMS)
 
 
-def run_stage1_pipeline(job_id: str, job_dir: Path, mode: str, workers: int, episode: str):
-    log_queue = jobs[job_id]["queue"]
-    _set_job_context(job_id, log_queue)
-
+def _run_stage1_core(job_id: str, job_dir: Path, mode: str, workers: int, episode: str):
+    """Core Stage 1 logic — callable from standalone route or pipeline."""
     scripts_dir = job_dir / "episodic scripts"
     raw_out     = job_dir / "_stage1_out"
     raw_out.mkdir(parents=True, exist_ok=True)
     show_name   = job_dir.name
 
+    _log(f"\n{'=' * 60}")
+    _log("  STAGE 1 — Reference File Generation")
+    _log(f"  Show: {show_name}")
+    _log(f"{'=' * 60}\n")
+
+    verify_auth()
+    auto_convert(scripts_dir)
+
+    filenames = [episode] if mode == "episode" else None
+    scripts   = read_scripts(scripts_dir, filenames)
+
+    if mode in ("full", "all-episodes"):
+        _log("\n  -- Episode Detail Files ----------------------")
+        generate_all_episode_details(scripts, raw_out, show_name, workers, jobs[job_id]["queue"], job_id)
+
+    if mode in ("full", "show-level"):
+        _log("\n  -- Show-Level Files (batched) ----------------")
+        generate_all_show_level_batches(scripts, raw_out, show_name)
+
+    if mode == "episode":
+        stem = Path(episode).stem
+        _log(f"\n  -- Single episode: {stem} --")
+        _episode_detail_task(stem, scripts[stem], raw_out, show_name, 1, jobs[job_id]["queue"], job_id)
+
+    show_level_dir = job_dir / "show level files"
+    ep_details_dir = job_dir / "episode details"
+    show_level_dir.mkdir(exist_ok=True)
+    ep_details_dir.mkdir(exist_ok=True)
+
+    moved_show = moved_ep = 0
+    for f in raw_out.glob("*.md"):
+        dest = show_level_dir if _is_show_level_file(f.name) else ep_details_dir
+        shutil.copy2(f, dest / f.name)
+        if dest is show_level_dir: moved_show += 1
+        else:                      moved_ep   += 1
+    shutil.rmtree(raw_out, ignore_errors=True)
+
+    tok = jobs[job_id]["tokens"]
+    s1_cost = (tok["input"] * LLM_INPUT_COST_PER_MTOK + tok["output"] * LLM_OUTPUT_COST_PER_MTOK) / 1_000_000
+    jobs[job_id]["file_tokens"].append({
+        "name": f"Show-level files ({moved_show})",
+        "input": tok["input"], "output": tok["output"], "calls": tok["calls"],
+        "cost": round(s1_cost, 4),
+    })
+    _log(f"\n{'=' * 60}")
+    _log("  STAGE 1 COMPLETE")
+    _log(f"    -> show level files/  ({moved_show} file(s))")
+    _log(f"    -> episode details/   ({moved_ep} file(s))")
+    _log(f"    -> Tokens used: {tok['input']:,} input / {tok['output']:,} output / {tok['calls']} API calls")
+    _log(f"    -> Cost: ${s1_cost:.4f}")
+    _log(f"{'=' * 60}\n")
+
+
+def run_stage1_pipeline(job_id: str, job_dir: Path, mode: str, workers: int, episode: str):
+    """Standalone entry point (called from API route)."""
+    log_queue = jobs[job_id]["queue"]
+    _set_job_context(job_id, log_queue)
     try:
-        _log(f"\n{'=' * 60}")
-        _log("  STAGE 1 — Reference File Generation")
-        _log(f"  Show: {show_name}")
-        _log(f"{'=' * 60}\n")
-
-        verify_auth()
-        auto_convert(scripts_dir)
-
-        filenames = [episode] if mode == "episode" else None
-        scripts   = read_scripts(scripts_dir, filenames)
-
-        if mode in ("full", "all-episodes"):
-            _log("\n  -- Episode Detail Files ----------------------")
-            generate_all_episode_details(scripts, raw_out, show_name, workers, log_queue, job_id)
-
-        if mode in ("full", "show-level"):
-            _log("\n  -- Show-Level Files (batched) ----------------")
-            generate_all_show_level_batches(scripts, raw_out, show_name)
-
-        if mode == "episode":
-            stem = Path(episode).stem
-            _log(f"\n  -- Single episode: {stem} --")
-            _episode_detail_task(stem, scripts[stem], raw_out, show_name, 1, log_queue, job_id)
-
-        show_level_dir = job_dir / "show level files"
-        ep_details_dir = job_dir / "episode details"
-        show_level_dir.mkdir(exist_ok=True)
-        ep_details_dir.mkdir(exist_ok=True)
-
-        moved_show = moved_ep = 0
-        for f in raw_out.glob("*.md"):
-            dest = show_level_dir if _is_show_level_file(f.name) else ep_details_dir
-            shutil.copy2(f, dest / f.name)
-            if dest is show_level_dir: moved_show += 1
-            else:                      moved_ep   += 1
-        shutil.rmtree(raw_out, ignore_errors=True)
-
-        tok = jobs[job_id]["tokens"]
-        s1_cost = (tok["input"] * LLM_INPUT_COST_PER_MTOK + tok["output"] * LLM_OUTPUT_COST_PER_MTOK) / 1_000_000
-        jobs[job_id]["file_tokens"].append({
-            "name": f"Show-level files ({moved_show})",
-            "input": tok["input"], "output": tok["output"], "calls": tok["calls"],
-            "cost": round(s1_cost, 4),
-        })
-        _log(f"\n{'=' * 60}")
-        _log("  STAGE 1 COMPLETE")
-        _log(f"    -> show level files/  ({moved_show} file(s))")
-        _log(f"    -> episode details/   ({moved_ep} file(s))")
-        _log(f"    -> Tokens used: {tok['input']:,} input / {tok['output']:,} output / {tok['calls']} API calls")
-        _log(f"    -> Cost: ${s1_cost:.4f}")
-        _log(f"{'=' * 60}\n")
-
+        _run_stage1_core(job_id, job_dir, mode, workers, episode)
         jobs[job_id]["status"] = "done"
-
     except Exception as e:
         tb = traceback.format_exc()
         _log(f"\n[ERROR] {e}\n{tb}")
@@ -1576,8 +1622,40 @@ def _match_episode_detail(episode_name: str, detail_files: list) -> str:
     return ""
 
 
-def _process_one_episode(job_dir: Path, script_text: str, episode_name: str, ref_files: dict) -> str:
-    """Run full Stage 2 pipeline for one episode. Returns Excel filename."""
+CHUNK_TARGET_WORDS = 500
+
+
+def _split_script_into_chunks(script_text: str, target_words: int = CHUNK_TARGET_WORDS) -> list:
+    paragraphs = re.split(r'\n\s*\n', script_text.strip())
+    paragraphs = [p.strip() for p in paragraphs if p.strip()]
+    if not paragraphs:
+        return [{"text": script_text, "word_count": len(script_text.split())}]
+
+    chunks = []
+    current_paras = []
+    current_words = 0
+
+    for para in paragraphs:
+        para_words = len(para.split())
+        if current_words + para_words > target_words * 1.3 and current_words >= target_words * 0.5:
+            chunk_text = "\n\n".join(current_paras)
+            chunks.append({"text": chunk_text, "word_count": len(chunk_text.split())})
+            current_paras = [para]
+            current_words = para_words
+        else:
+            current_paras.append(para)
+            current_words += para_words
+
+    if current_paras:
+        chunk_text = "\n\n".join(current_paras)
+        chunks.append({"text": chunk_text, "word_count": len(chunk_text.split())})
+
+    return chunks
+
+
+def _process_one_episode(job_dir: Path, script_text: str, episode_name: str, ref_files: dict, _chunk_mode: bool = False) -> str:
+    """Run full Stage 2 pipeline for one episode. Returns Excel filename.
+    When _chunk_mode=True, returns the raw shot rows list instead of writing Excel."""
     jid = getattr(_job_local, "job_id", None)
 
     def _update_shot_counter(total: int):
@@ -1585,14 +1663,47 @@ def _process_one_episode(job_dir: Path, script_text: str, episode_name: str, ref
             jobs[jid]["progress"]["shots_done"] = total
             jobs[jid]["progress"]["ep_shots"]   = total
 
-    # ── Calculate required shot range from word count ─────────────────────────
-    word_count = len(script_text.split())
-    min_shots  = max(10, int(word_count / 100 * 7))
-    max_shots  = int(word_count / 100 * 9)
-    _log(f"  Script: {word_count:,} words  |  Required shots: {min_shots}–{max_shots}")
+    full_script_text = script_text  # preserve for global post-processing
 
-    # ── Pass 1: Beat extraction ────────────────────────────────────────────────
-    beat_list = _extract_beats(script_text, episode_name)
+    def _norm(t):
+        return re.sub(r'[^\w\s]', '', t.lower()).split()
+
+    def _norm_str(t):
+        return " ".join(_norm(t))
+
+    # ── Chunked generation: split script, process each chunk, stitch ─────────
+    word_count = len(script_text.split())
+    chunks = _split_script_into_chunks(script_text) if not _chunk_mode and word_count > CHUNK_TARGET_WORDS * 1.5 else []
+
+    if chunks and len(chunks) > 1:
+        min_shots_global = max(10, int(word_count / 100 * 7))
+        max_shots_global = int(word_count / 100 * 9)
+        _log(f"  Script: {word_count:,} words  |  {len(chunks)} chunks  |  Target: {min_shots_global}–{max_shots_global} shots")
+
+        all_chunk_rows = []
+        for ci, chunk in enumerate(chunks):
+            _log(f"\n  ━━━ Chunk {ci+1}/{len(chunks)} ({chunk['word_count']} words) ━━━")
+            if jid and jid in jobs:
+                jobs[jid]["progress"]["stage"] = f"Chunk {ci+1}/{len(chunks)}"
+            chunk_rows = _process_one_episode(job_dir, chunk["text"], f"{episode_name}_chunk{ci+1}", ref_files, _chunk_mode=True)
+            all_chunk_rows.extend(chunk_rows)
+            _log(f"  Chunk {ci+1}: {len(chunk_rows)} shots  |  Running total: {len(all_chunk_rows)}")
+
+        all_rows = all_chunk_rows
+        script_text = full_script_text  # restore for global post-processing below
+
+        # jump to global post-processing (reorder, dedup, validation, Excel write)
+        # — this code path falls through to the reorder section below
+    else:
+        # Single chunk or chunk_mode — run the standard pipeline
+        min_shots  = max(10, int(word_count / 100 * 7))
+        max_shots  = int(word_count / 100 * 9)
+        min_shots_global = min_shots
+        max_shots_global = max_shots
+        _log(f"  Script: {word_count:,} words  |  Required shots: {min_shots}–{max_shots}")
+
+        # ── Pass 1: Beat extraction ──────────────────────────────────────────
+        beat_list = _extract_beats(script_text, episode_name)
 
     # ── Inject mandatory target + beat checklist into the user message ────────
     beat_checklist_block = ""
@@ -1705,12 +1816,6 @@ def _process_one_episode(job_dir: Path, script_text: str, episode_name: str, ref
         raise RuntimeError(f"No shot rows parsed for {episode_name}")
 
     # ── Coverage verification (word-level + sentence-level) ────────────────
-    def _norm(t):
-        return re.sub(r'[^\w\s]', '', t.lower()).split()
-
-    def _norm_str(t):
-        return " ".join(_norm(t))
-
     def _measure_coverage(rows):
         sw = _norm(script_text)
         rw = []
@@ -1940,6 +2045,11 @@ def _process_one_episode(job_dir: Path, script_text: str, episode_name: str, ref
         rephrased = _find_rephrased(all_rows)
         _log(f"  Coverage after round {fill_round + 1}: {coverage:.1f}%  |  Rephrased: {len(rephrased)}")
 
+        if _chunk_mode:
+            return all_rows
+
+    # ── Global post-processing (both chunked and single paths merge here) ─────
+
     # Re-order rows by scanning through script and greedily matching each row
     # Handles repeated dialogue correctly: first occurrence matches first row,
     # second occurrence matches the next unassigned row with that text
@@ -2085,41 +2195,87 @@ def _process_one_episode(job_dir: Path, script_text: str, episode_name: str, ref
     _log(f"  {'✓ All 5 checks passed' if _val_issues == 0 else f'⚠ {_val_issues} issue(s) found — review output'}")
 
     # ── Final count check ────────────────────────────────────────────────────
-    if len(all_rows) < min_shots:
-        _log(f"  !! WARNING: {len(all_rows)} shots delivered — below minimum {min_shots} for {word_count:,}-word script")
+    if len(all_rows) < min_shots_global:
+        _log(f"  !! WARNING: {len(all_rows)} shots delivered — below minimum {min_shots_global} for {word_count:,}-word script")
     else:
-        _log(f"  ok  {len(all_rows)} shots delivered — within target range {min_shots}–{max_shots}")
+        _log(f"  ok  {len(all_rows)} shots delivered — within target range {min_shots_global}–{max_shots_global}")
 
     safe_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', episode_name)
     xlsx_name = f"{safe_name}_breakdown.xlsx"
     write_excel(all_rows, job_dir / xlsx_name, episode_name)
-    _log(f"  ok  Excel: {xlsx_name}  —  {len(all_rows)} shots  (required: {min_shots}–{max_shots})")
+    _log(f"  ok  Excel: {xlsx_name}  —  {len(all_rows)} shots  (required: {min_shots_global}–{max_shots_global})")
     return xlsx_name
 
 
-def run_stage2_pipeline(job_id: str, job_dir: Path, episodes: list, ref_files_global: dict, detail_files: list):
-    """Process multiple episodes sequentially. Each gets its own Excel."""
-    log_queue = jobs[job_id]["queue"]
-    _set_job_context(job_id, log_queue)
+def _run_stage2_core(job_id: str, job_dir: Path, episodes: list, ref_files_global: dict, detail_files: list, workers: int = 1):
+    """Core Stage 2 logic — callable from standalone route or pipeline.
+    workers > 1 processes multiple episodes in parallel."""
+    _log(f"\n{'=' * 60}")
+    _log(f"  STAGE 2 — Shot Breakdown Pipeline")
+    _log(f"  Episodes to process: {len(episodes)}  |  Workers: {workers}")
+    for i, ep in enumerate(episodes, 1):
+        _log(f"    {i}. {ep['name']}")
+    _log(f"{'=' * 60}\n")
 
-    try:
-        _log(f"\n{'=' * 60}")
-        _log(f"  STAGE 2 — Shot Breakdown Pipeline")
-        _log(f"  Episodes to process: {len(episodes)}")
-        for i, ep in enumerate(episodes, 1):
-            _log(f"    {i}. {ep['name']}")
-        _log(f"{'=' * 60}\n")
+    verify_auth()
 
-        verify_auth()
+    jobs[job_id]["progress"]["started_at"] = time.time()
+    jobs[job_id]["progress"]["total"]     = len(episodes)
+    jobs[job_id]["progress"]["shots_done"] = 0
+    jobs[job_id]["progress"]["ep_shots"]   = 0
 
-        jobs[job_id]["progress"]["started_at"] = time.time()
-        jobs[job_id]["progress"]["total"]     = len(episodes)
-        jobs[job_id]["progress"]["shots_done"] = 0
-        jobs[job_id]["progress"]["ep_shots"]   = 0
+    output_files = []
+    failures     = []
 
-        output_files = []
-        failures     = []
+    if workers > 1 and len(episodes) > 1:
+        _log(f"  >> Parallel mode: {workers} episodes at a time\n")
+        _s2_lock = threading.Lock()
+        _s2_done = [0]
 
+        def _s2_episode_task(ep_tuple):
+            i, ep = ep_tuple
+            ep_name = ep["name"]
+            log_queue = jobs[job_id]["queue"]
+            _set_job_context(job_id, log_queue)
+            _log(f"\n  ═══ EPISODE {i}/{len(episodes)}: {ep_name} ═══")
+
+            ref_files = dict(ref_files_global)
+            matched = _match_episode_detail(ep_name, detail_files)
+            if matched:
+                ref_files["episode_detail"] = matched
+                _log(f"  Matched episode_detail for {ep_name}")
+            elif len(detail_files) == 1:
+                ref_files["episode_detail"] = detail_files[0][1]
+
+            tok_before = dict(jobs[job_id]["tokens"])
+            try:
+                xlsx = _process_one_episode(job_dir, ep["script_text"], ep_name, ref_files)
+                with _s2_lock:
+                    output_files.append(xlsx)
+                    jobs[job_id]["output_files"] = list(output_files)
+            except Exception as e:
+                _log(f"  [ERROR] Episode {ep_name} failed: {e}")
+                with _s2_lock:
+                    failures.append(ep_name)
+
+            tok_after = jobs[job_id]["tokens"]
+            ep_in = tok_after["input"] - tok_before["input"]
+            ep_out = tok_after["output"] - tok_before["output"]
+            ep_calls = tok_after["calls"] - tok_before["calls"]
+            ep_cost = (ep_in * LLM_INPUT_COST_PER_MTOK + ep_out * LLM_OUTPUT_COST_PER_MTOK) / 1_000_000
+            with _s2_lock:
+                _s2_done[0] += 1
+                jobs[job_id]["progress"]["completed"] = _s2_done[0]
+                jobs[job_id]["progress"]["stage"] = f"Done {_s2_done[0]}/{len(episodes)}"
+                jobs[job_id]["file_tokens"].append({
+                    "name": ep_name,
+                    "input": ep_in, "output": ep_out, "calls": ep_calls,
+                    "cost": round(ep_cost, 4),
+                })
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            list(pool.map(_s2_episode_task, list(enumerate(episodes, 1))))
+    else:
         for i, ep in enumerate(episodes, 1):
             ep_name = ep["name"]
             _log(f"\n  ═══ EPISODE {i}/{len(episodes)}: {ep_name} ═══")
@@ -2135,42 +2291,48 @@ def run_stage2_pipeline(job_id: str, job_dir: Path, episodes: list, ref_files_gl
                 ref_files["episode_detail"] = detail_files[0][1]
                 _log(f"  Using only available episode_detail ({detail_files[0][0]})")
 
-            tok_before = dict(jobs[job_id]["tokens"])
-            try:
-                xlsx = _process_one_episode(job_dir, ep["script_text"], ep_name, ref_files)
-                output_files.append(xlsx)
-                jobs[job_id]["output_files"] = list(output_files)
-            except Exception as e:
-                _log(f"  [ERROR] Episode {ep_name} failed: {e}")
-                failures.append(ep_name)
-            tok_after = jobs[job_id]["tokens"]
-            ep_in = tok_after["input"] - tok_before["input"]
-            ep_out = tok_after["output"] - tok_before["output"]
-            ep_calls = tok_after["calls"] - tok_before["calls"]
-            _log(f"  Tokens for {ep_name}: {ep_in:,} input / {ep_out:,} output / {ep_calls} API calls")
-            ep_cost = (ep_in * LLM_INPUT_COST_PER_MTOK + ep_out * LLM_OUTPUT_COST_PER_MTOK) / 1_000_000
-            jobs[job_id]["file_tokens"].append({
-                "name": ep_name,
-                "input": ep_in, "output": ep_out, "calls": ep_calls,
-                "cost": round(ep_cost, 4),
-            })
+        tok_before = dict(jobs[job_id]["tokens"])
+        try:
+            xlsx = _process_one_episode(job_dir, ep["script_text"], ep_name, ref_files)
+            output_files.append(xlsx)
+            jobs[job_id]["output_files"] = list(output_files)
+        except Exception as e:
+            _log(f"  [ERROR] Episode {ep_name} failed: {e}")
+            failures.append(ep_name)
+        tok_after = jobs[job_id]["tokens"]
+        ep_in = tok_after["input"] - tok_before["input"]
+        ep_out = tok_after["output"] - tok_before["output"]
+        ep_calls = tok_after["calls"] - tok_before["calls"]
+        _log(f"  Tokens for {ep_name}: {ep_in:,} input / {ep_out:,} output / {ep_calls} API calls")
+        ep_cost = (ep_in * LLM_INPUT_COST_PER_MTOK + ep_out * LLM_OUTPUT_COST_PER_MTOK) / 1_000_000
+        jobs[job_id]["file_tokens"].append({
+            "name": ep_name,
+            "input": ep_in, "output": ep_out, "calls": ep_calls,
+            "cost": round(ep_cost, 4),
+        })
 
-            jobs[job_id]["progress"]["completed"] = i
+        jobs[job_id]["progress"]["completed"] = i
 
-        jobs[job_id]["output_files"] = output_files
-        jobs[job_id]["output_file"]  = output_files[0] if output_files else None
+    jobs[job_id]["output_files"] = output_files
+    jobs[job_id]["output_file"]  = output_files[0] if output_files else None
 
-        tok = jobs[job_id]["tokens"]
-        _log(f"\n{'=' * 60}")
-        _log(f"  STAGE 2 COMPLETE")
-        _log(f"  Successful: {len(output_files)}/{len(episodes)}")
-        if failures:
-            _log(f"  Failed:     {len(failures)} — {', '.join(failures)}")
-        _log(f"  Total tokens: {tok['input']:,} input / {tok['output']:,} output / {tok['calls']} API calls")
-        _log(f"{'=' * 60}\n")
+    tok = jobs[job_id]["tokens"]
+    _log(f"\n{'=' * 60}")
+    _log(f"  STAGE 2 COMPLETE")
+    _log(f"  Successful: {len(output_files)}/{len(episodes)}")
+    if failures:
+        _log(f"  Failed:     {len(failures)} — {', '.join(failures)}")
+    _log(f"  Total tokens: {tok['input']:,} input / {tok['output']:,} output / {tok['calls']} API calls")
+    _log(f"{'=' * 60}\n")
 
+
+def run_stage2_pipeline(job_id: str, job_dir: Path, episodes: list, ref_files_global: dict, detail_files: list):
+    """Standalone entry point (called from API route)."""
+    log_queue = jobs[job_id]["queue"]
+    _set_job_context(job_id, log_queue)
+    try:
+        _run_stage2_core(job_id, job_dir, episodes, ref_files_global, detail_files)
         jobs[job_id]["status"] = "done"
-
     except Exception as e:
         tb = traceback.format_exc()
         _log(f"\n[ERROR] {e}\n{tb}")
@@ -2190,6 +2352,13 @@ S3_AUDIT_SYSTEM_PROMPT = r"""You are a script audit checker for an AI shot break
 WHAT THE LINE COLUMN IS:
 The Line column must contain verbatim text copied directly from the source script — the exact words, punctuation, and sentence structure as written in the script file. It is not a summary, not a label, not a shorthand description, not a dash-separated keyword string.
 
+THE #1 AUDIT RULE — VERBATIM COMPARISON ONLY (OVERRIDES ALL OTHER RULES):
+Your ONLY job is to check whether each shot's Line text exists verbatim in the source script. If the Line matches the script text character for character, it is CORRECT and you MUST NOT flag it — no exceptions.
+- Even if the dialogue attribution seems wrong ("Gordon asked" when you think Nara should be asking) — if the script says "Gordon asked", the shot is CORRECT.
+- Even if the context seems illogical — if the Line matches the script, do NOT fix it.
+- Even if you believe there is a typo or error in the script itself — you are NOT an editor. The script is the source of truth.
+- BEFORE flagging ANY shot as Problem A, B, or C: search for the shot's EXACT Line text in the source script. If you find it — STOP. That shot is correct. Do not flag it. Move on.
+
 LINE PROBLEMS TO IDENTIFY:
 
 Problem A — Summarized or paraphrased Line
@@ -2199,6 +2368,7 @@ How to spot it:
 - Drops words, clauses, or dialogue tags that exist in the script sentence
 - Rewrites the script in different words
 - Condenses two script sentences into a short label
+- IMPORTANT: A Line is Problem A ONLY if its text does not match the script. If the Line is a word-for-word copy from the script, it is NOT Problem A regardless of whether the content seems correct or logical.
 Fix: Replace with the exact verbatim script sentence(s) the Line represents. Copy character for character from the script.
 
 Problem B — Invented Line with no script basis
@@ -2210,16 +2380,26 @@ Examples of invented Lines:
 Fix: Flag the entire row for deletion.
 
 Problem C — Truncated Line missing clauses
-A Line that covers only part of a script sentence — only the dialogue dropping the action tag, or only the first clause dropping everything after the comma or conjunction.
-When a script sentence contains multiple clauses joined by commas, conjunctions, or dialogue tags (e.g. "she did X, feeling Y"), every clause must be present in the Line. Read the full sentence from the script before writing the Line.
+A Line that covers only part of a SINGLE script sentence AND the missing portion is NOT in the next shot.
 Fix: Expand the Line to the full verbatim sentence including all clauses.
 
-Problem D — Intermediate shot Line not matching parent
-Every intermediate shot (decimal shot number like 5.1, 16.1, 23.1) must have its Line copied character for character from its parent shot (the whole-number shot immediately before it). If it differs in any way it must be corrected.
-Fix: Copy the parent shot's Line exactly into the intermediate shot's Line cell.
+CRITICAL — WHEN PROBLEM C DOES NOT APPLY:
+1. Consecutive SENTENCES split across shots: If Shot N has sentence A and Shot N+1 has sentence B, and both are complete verbatim text from the script, that is CORRECT. Do NOT merge.
+2. Long sentence deliberately split at a visual boundary: If a long sentence is split between two shots (e.g. a description clause on one shot, the dialogue on the next), AND the next shot carries the remainder verbatim, that is an INTENTIONAL SPLIT for visual storytelling. Do NOT merge. Do NOT flag Problem C.
+3. The mechanical test: If the current shot's Line text exists verbatim in the script, AND the next shot's Line text exists verbatim in the script, AND together they cover the full sentence — this is a valid split regardless of punctuation.
+
+Problem C ONLY applies when part of a sentence is genuinely MISSING — not covered by any shot.
+
+CRITICAL — NO CASCADE FIXES:
+Never propose a fix that shifts Lines from one shot to the next in a chain. If shots 131-150 each have a unique verbatim sentence from the script in sequential order, they are ALL correct. Do not re-assign shot 132's Line to shot 131, then 133's to 132, etc. If every shot's Line exists verbatim in the script and the shots follow script order, there is nothing to fix.
+
+Problem D — Intermediate shot Line duplicating parent instead of splitting
+When a parent shot's Line covers multiple visual moments and has intermediate shots (e.g. 5.1, 5.2), the text must be SPLIT across the parent and its intermediates — each shot carries only the portion of text for its specific visual moment. No two shots should have the same Line text.
+How to spot it: An intermediate shot (decimal number like 5.1, 16.1) has the exact same Line text as its parent shot (5, 16). This means the text was copied instead of split.
+Fix: Split the parent's Line text so the parent keeps only its portion and each intermediate gets its own distinct portion. The concatenation of parent + intermediate Lines must equal the original full text. Every shot's Line must be unique.
 
 DUPLICATE AND MISSING COVERAGE CHECKS:
-- Exact duplicates: same Line text on two or more shots that are not an intermediate pair
+- Exact duplicates: same Line text on two or more shots — including parent/intermediate pairs. Every shot must have unique Line text.
 - Partial duplicates: one shot's Line is a substring of another shot's Line (and neither is an intentional split)
 - Missing coverage: for each script beat, verify it appears in at least one shot's Line column
 - Do not use fuzzy matching alone. Manually verify any flagged miss.
@@ -2232,7 +2412,10 @@ COMMON FAILURE MODES — NEVER DO THESE:
 - Deleting a "duplicate" that is the only coverage of a script beat — always check the script first
 - Dropping clauses — when fixing a truncated Line, read the full sentence from the script
 - Paraphrasing instead of copying — close is not correct. The Line must be identical to the script, not similar
-- Leaving intermediate Lines unsynced — after fixing any parent shot's Line, always update all its intermediates to match
+- Copying parent Line into intermediates — intermediate shots must carry their OWN portion of the text, not a duplicate of the parent's Line
+- Merging intentional splits — when two consecutive shots each have a COMPLETE verbatim sentence from the script, do NOT merge them into one shot. This is deliberate splitting for visual storytelling. Only flag Problem C when a single sentence is cut mid-clause
+- Cascade-fixing — never shift Lines from one shot to the next in a chain. If each shot has a unique verbatim script sentence in order, they are all correct
+- Contextual reinterpretation — never "fix" a Line that matches the script verbatim. If the script says "Gordon asked" and the shot says "Gordon asked", do not change it based on your understanding of who should be speaking
 
 OUTPUT FORMAT:
 Return ONLY a valid JSON object with this structure:
@@ -2340,7 +2523,7 @@ def _s3_call_audit(script_text: str, chunk_text: str, label: str) -> str:
         f"TASK: Run the LINE COLUMN AUDIT on the following shots. Compare each shot's Line column "
         f"against the source script below. Identify all problems (A: summarized/paraphrased, "
         f"B: invented with no script basis, C: truncated/missing clauses, D: intermediate "
-        f"not matching parent) and provide fixes.\n\n"
+        f"Line duplicating parent instead of splitting) and provide fixes.\n\n"
         f"{'=' * 40} SOURCE SCRIPT {'=' * 40}\n{script_text}\n\n"
         f"{'=' * 40} SHOTS TO AUDIT {'=' * 40}\n{chunk_text}\n\n"
         f"Return ONLY a JSON object with 'fixes', 'delete_rows', and 'notes' fields."
@@ -2516,7 +2699,7 @@ def _run_s3_one(job_id: str, job_dir: Path, excel_path: Path, script_text: str) 
         f"For each sentence/beat in the script, verify it appears in at least one shot's Line column "
         f"(either as the full sentence or a confirmed partial split). Report:\n"
         f"1. Any script beats NOT covered by any shot Line\n"
-        f"2. Any exact duplicate Lines (same text on multiple non-intermediate shots)\n"
+        f"2. Any exact duplicate Lines (same text on multiple shots — including parent/intermediate pairs)\n"
         f"3. Any partial duplicates (one Line is substring of another)\n\n"
         f"{'=' * 40} SOURCE SCRIPT {'=' * 40}\n{script_text}\n\n"
         f"{'=' * 40} ALL SHOT LINES {'=' * 40}\n{compact_lines}\n\n"
@@ -2611,49 +2794,52 @@ def _run_s3_one(job_id: str, job_dir: Path, excel_path: Path, script_text: str) 
     return bool(all_fixes or all_deletes)
 
 
+def _run_stage3_batch_core(job_id: str, job_dir: Path, excel_paths: list, script_text: str):
+    """Core Stage 3 logic — callable from standalone route or pipeline."""
+    n = len(excel_paths)
+    _log(f"  Stage 3 — Script Audit Checker — {n} file(s) to audit\n")
+    _log(f"  Script: {len(script_text):,} characters\n")
+
+    has_flags = False
+    for i, ep in enumerate(excel_paths, 1):
+        if n > 1:
+            _log(f"\n  ──── File {i}/{n}: {ep.name} ────")
+        tok_before = dict(jobs[job_id]["tokens"])
+        try:
+            flagged = _run_s3_one(job_id, job_dir, ep, script_text)
+            if flagged:
+                has_flags = True
+        except Exception as e:
+            _log(f"[ERROR] {ep.name} failed: {e}")
+            import traceback; traceback.print_exc()
+        tok_after = jobs[job_id]["tokens"]
+        f_in = tok_after["input"] - tok_before["input"]
+        f_out = tok_after["output"] - tok_before["output"]
+        f_calls = tok_after["calls"] - tok_before["calls"]
+        f_cost = (f_in * LLM_INPUT_COST_PER_MTOK + f_out * LLM_OUTPUT_COST_PER_MTOK) / 1_000_000
+        jobs[job_id]["file_tokens"].append({
+            "name": ep.stem,
+            "input": f_in, "output": f_out, "calls": f_calls,
+            "cost": round(f_cost, 4),
+        })
+
+    if has_flags:
+        jobs[job_id]["status"] = "flagged"
+    else:
+        jobs[job_id]["status"] = "done" if jobs[job_id].get("output_files") else "failed"
+
+    if n > 1:
+        _log(f"\n{'=' * 60}")
+        _log(f"  ALL DONE — audit complete for {n} file(s)")
+        _log(f"{'=' * 60}")
+
+
 def run_stage3_batch(job_id: str, job_dir: Path, excel_paths: list, script_text: str):
+    """Standalone entry point (called from API route)."""
     log_queue = jobs[job_id]["queue"]
     _set_job_context(job_id, log_queue)
-
     try:
-        n = len(excel_paths)
-        _log(f"  Stage 3 — Script Audit Checker — {n} file(s) to audit\n")
-        _log(f"  Script: {len(script_text):,} characters\n")
-        output_files = []
-
-        has_flags = False
-        for i, ep in enumerate(excel_paths, 1):
-            if n > 1:
-                _log(f"\n  ──── File {i}/{n}: {ep.name} ────")
-            tok_before = dict(jobs[job_id]["tokens"])
-            try:
-                flagged = _run_s3_one(job_id, job_dir, ep, script_text)
-                if flagged:
-                    has_flags = True
-            except Exception as e:
-                _log(f"[ERROR] {ep.name} failed: {e}")
-                import traceback; traceback.print_exc()
-            tok_after = jobs[job_id]["tokens"]
-            f_in = tok_after["input"] - tok_before["input"]
-            f_out = tok_after["output"] - tok_before["output"]
-            f_calls = tok_after["calls"] - tok_before["calls"]
-            f_cost = (f_in * LLM_INPUT_COST_PER_MTOK + f_out * LLM_OUTPUT_COST_PER_MTOK) / 1_000_000
-            jobs[job_id]["file_tokens"].append({
-                "name": ep.stem,
-                "input": f_in, "output": f_out, "calls": f_calls,
-                "cost": round(f_cost, 4),
-            })
-
-        if has_flags:
-            jobs[job_id]["status"] = "flagged"
-        else:
-            jobs[job_id]["status"] = "done" if jobs[job_id].get("output_files") else "failed"
-
-        if n > 1:
-            _log(f"\n{'=' * 60}")
-            _log(f"  ALL DONE — audit complete for {n} file(s)")
-            _log(f"{'=' * 60}")
-
+        _run_stage3_batch_core(job_id, job_dir, excel_paths, script_text)
     except Exception as e:
         _log(f"[ERROR] Stage 3 batch failed: {e}")
         import traceback; traceback.print_exc()
@@ -2669,6 +2855,7 @@ S4_WORKSPACE.mkdir(parents=True, exist_ok=True)
 
 S4_COST_PER_IMAGE = 0.02
 S4_RATE_LIMIT_DELAY = 32
+_madeye_pool = MadEyeKeyPool(MADEYE_API_KEYS, S4_RATE_LIMIT_DELAY) if MADEYE_API_KEYS else None
 
 
 def _s4_track(job_id: str, calls: int = 0, images: int = 0):
@@ -2801,12 +2988,12 @@ def _s4_parse_canvas(canvas_path: Path, canvas_type: str) -> list:
     return items
 
 
-def _s4_generate_one(prompt: str, job_id: str, item_num, job_dir: Path, retries: int = 2, regen_job_id: str = None) -> str:
+def _s4_generate_one(prompt: str, job_id: str, item_num, job_dir: Path, retries: int = 2, regen_job_id: str = None, api_key: str = None) -> str:
     import base64 as _b64
     track_id = regen_job_id or job_id
     url = f"{MADEYE_BASE_URL}/v1/images/generations"
     headers = {
-        "Authorization": f"Bearer {MADEYE_API_KEY}",
+        "Authorization": f"Bearer {api_key or MADEYE_API_KEY}",
         "Content-Type": "application/json",
     }
     body = {
@@ -2895,74 +3082,94 @@ def _s4_write_output_excel(items: list, output_path: Path):
     wb.save(str(output_path))
 
 
-def run_stage4_pipeline(job_id: str, job_dir: Path, items: list):
-    log_queue = jobs[job_id]["queue"]
-    _set_job_context(job_id, log_queue)
-    try:
-        total = len(items)
-        jobs[job_id]["progress"]["total"] = total
-        _log(f"  >>  Stage 4: Generating reference images for {total} items")
-        jobs[job_id]["s4_items"] = items
+def _run_stage4_core(job_id: str, job_dir: Path, items: list):
+    """Core Stage 4 logic — callable from standalone route or pipeline."""
+    total = len(items)
+    jobs[job_id]["progress"]["total"] = total
+    _log(f"  >>  Stage 4: Generating reference images for {total} items")
+    jobs[job_id]["s4_items"] = items
 
-        for idx, item in enumerate(items, 1):
-            itype = item["type"]
-            name  = item["name"]
-            desc  = item.get("description", "")
+    # Prepare all tasks (build prompts)
+    s4_tasks = []
+    for idx, item in enumerate(items, 1):
+        itype = item["type"]
+        name  = item["name"]
+        desc  = item.get("description", "")
 
-            jobs[job_id]["progress"]["completed"] = idx - 1
-            jobs[job_id]["progress"]["stage"] = f"{itype.title()}: {name}"
-            _log(f"  [{idx}/{total}]  {itype.title()}: {name}")
+        if itype == "character":
+            prompt = (
+                "Professional fashion editorial photograph, real human adult with realistic adult body proportions. "
+                "The subject's head is small relative to the body, exactly 1/7.5 of total height. "
+                "Long legs, normal-sized torso, photographed from mid-distance showing full body head to shoes. "
+                f"Subject: {name}. {desc} "
+                "Shot on 85mm lens, studio lighting, clean neutral background. "
+                "8K photorealistic. PURE IMAGE ONLY — zero text, no words, no watermark."
+            )
+        else:
+            prompt = (
+                f"8K photorealistic wide establishing shot of {name}. {desc} "
+                "Cinematic composition, detailed environment, atmospheric lighting. "
+                "PURE IMAGE ONLY — zero text, no words, no letters, no watermark."
+            )
+        item["prompt"] = prompt
+        s4_tasks.append((idx, item, prompt))
 
-            if itype == "character":
-                prompt = (
-                    "Professional fashion editorial photograph, real human adult with realistic adult body proportions. "
-                    "The subject's head is small relative to the body, exactly 1/7.5 of total height. "
-                    "Long legs, normal-sized torso, photographed from mid-distance showing full body head to shoes. "
-                    f"Subject: {name}. {desc} "
-                    "Shot on 85mm lens, studio lighting, clean neutral background. "
-                    "8K photorealistic. PURE IMAGE ONLY — zero text, no words, no watermark."
-                )
-            else:
-                prompt = (
-                    f"8K photorealistic wide establishing shot of {name}. {desc} "
-                    "Cinematic composition, detailed environment, atmospheric lighting. "
-                    "PURE IMAGE ONLY — zero text, no words, no letters, no watermark."
-                )
+    # Execute with key pool
+    num_workers = _madeye_pool.key_count if _madeye_pool else 1
+    _log(f"  >>  Generating {len(s4_tasks)} reference images with {num_workers} key(s)")
+    _s4_gen_lock = threading.Lock()
+    _s4_completed = [0]
 
-            item["prompt"] = prompt
-            url = _s4_generate_one(prompt, job_id, idx, job_dir)
+    def _s4_gen_task(task_tuple):
+        idx, item, prompt = task_tuple
+        itype = item["type"]
+        name  = item["name"]
+        _log(f"  [{idx}/{total}]  {itype.title()}: {name}")
 
+        key = _madeye_pool.acquire() if _madeye_pool else None
+        try:
+            url = _s4_generate_one(prompt, job_id, idx, job_dir, api_key=key)
+        finally:
+            if _madeye_pool:
+                _madeye_pool.release_notify()
+
+        with _s4_gen_lock:
             if url:
                 item["generated_url"] = url
                 _log(f"  ok  Generated image for {name}")
             else:
                 item["generated_url"] = ""
                 _log(f"  !!  Failed to generate image for {name}")
-
             jobs[job_id]["file_tokens"].append({
                 "name": f"{itype.title()}: {name}",
                 "images": 1 if url else 0,
                 "cost": round(S4_COST_PER_IMAGE if url else 0, 4),
             })
+            _s4_completed[0] += 1
+            jobs[job_id]["progress"]["completed"] = _s4_completed[0]
 
-            if idx < total:
-                _log(f"  -> Rate limit pause ({S4_RATE_LIMIT_DELAY}s)…")
-                time.sleep(S4_RATE_LIMIT_DELAY)
+    with ThreadPoolExecutor(max_workers=num_workers) as pool:
+        list(pool.map(_s4_gen_task, s4_tasks))
+    jobs[job_id]["progress"]["stage"] = "Writing output"
 
-        jobs[job_id]["progress"]["completed"] = total
-        jobs[job_id]["progress"]["stage"] = "Writing output"
+    output_name = f"reference_images_{job_id[:8]}.xlsx"
+    output_path = job_dir / output_name
+    _s4_write_output_excel(items, output_path)
 
-        output_name = f"reference_images_{job_id[:8]}.xlsx"
-        output_path = job_dir / output_name
-        _s4_write_output_excel(items, output_path)
+    jobs[job_id]["output_file"] = output_name
+    jobs[job_id]["output_files"] = [output_name]
 
-        jobs[job_id]["output_file"] = output_name
-        jobs[job_id]["output_files"] = [output_name]
+    s4_img_count = sum(1 for ft in jobs[job_id].get("file_tokens", []) if ft.get("images"))
+    _log(f"  ==  Done — {s4_img_count} images | ${s4_img_count * S4_COST_PER_IMAGE:.2f}")
+
+
+def run_stage4_pipeline(job_id: str, job_dir: Path, items: list):
+    """Standalone entry point (called from API route)."""
+    log_queue = jobs[job_id]["queue"]
+    _set_job_context(job_id, log_queue)
+    try:
+        _run_stage4_core(job_id, job_dir, items)
         jobs[job_id]["status"] = "done"
-
-        t = jobs[job_id]["tokens"]
-        _log(f"  ==  Done — {t['output']} images | ${t['output'] * S4_COST_PER_IMAGE:.2f}")
-
     except Exception as e:
         _log(f"[ERROR] Stage 4 failed: {e}")
         import traceback; traceback.print_exc()
@@ -3195,12 +3402,13 @@ def _s5_track(job_id: str, calls: int = 0, images: int = 0):
 
 def _s5_generate_one(prompt: str, job_id: str,
                       shot_num, job_dir: Path, retries: int = 2,
-                      regen_job_id: str = None, ref_images: list = None) -> str:
+                      regen_job_id: str = None, ref_images: list = None,
+                      api_key: str = None) -> str:
     import base64 as _b64
     track_id = regen_job_id or job_id
     url = f"{MADEYE_BASE_URL}/v1/images/generations"
     headers = {
-        "Authorization": f"Bearer {MADEYE_API_KEY}",
+        "Authorization": f"Bearer {api_key or MADEYE_API_KEY}",
         "Content-Type": "application/json",
     }
     body = {
@@ -3364,112 +3572,129 @@ def _s5_create_google_sheet(shots: list, title: str) -> str:
         return ""
 
 
-def run_stage5_pipeline(job_id: str, job_dir: Path, excel_path: Path, char_dir: Path, loc_dir: Path = None):
-    log_queue = jobs[job_id]["queue"]
-    _set_job_context(job_id, log_queue)
+def _run_stage5_core(job_id: str, job_dir: Path, excel_path: Path, char_dir: Path, loc_dir: Path = None):
+    """Core Stage 5 logic — callable from standalone route or pipeline."""
+    _log("=" * 60)
+    _log("  STAGE 5 — Image Generation (Imagen 4 Fast via MadEye)")
+    _log("=" * 60)
 
-    try:
-        _log("=" * 60)
-        _log("  STAGE 5 — Image Generation (Imagen 4 Fast via MadEye)")
-        _log("=" * 60)
+    _log("  Reading shot breakdown Excel...")
+    shots = _s5_read_excel(excel_path)
+    _log(f"  ok  {len(shots)} shots found")
 
-        _log("  Reading shot breakdown Excel...")
-        shots = _s5_read_excel(excel_path)
-        _log(f"  ok  {len(shots)} shots found")
+    jobs[job_id]["progress"]["total"] = len(shots)
+    jobs[job_id]["s5_shots"] = shots
+    jobs[job_id]["s5_prompts"] = {}
+    jobs[job_id]["s5_excel_path"] = str(excel_path)
+    jobs[job_id]["s5_char_dir"] = str(char_dir) if char_dir else ""
 
-        jobs[job_id]["progress"]["total"] = len(shots)
-        jobs[job_id]["s5_shots"] = shots
-        jobs[job_id]["s5_prompts"] = {}
-        jobs[job_id]["s5_excel_path"] = str(excel_path)
-        jobs[job_id]["s5_char_dir"] = str(char_dir)
+    ref_map = _s5_build_ref_map(char_dir) if char_dir else {}
+    if ref_map:
+        _log(f"  ok  {len(ref_map)} character reference(s): {', '.join(ref_map.keys())}")
+    else:
+        _log("  --  No character references — generating without identity anchoring")
 
-        ref_map = _s5_build_ref_map(char_dir)
-        if ref_map:
-            _log(f"  ok  {len(ref_map)} character reference(s): {', '.join(ref_map.keys())}")
+    loc_map = {}
+    if loc_dir and loc_dir.exists():
+        loc_map = _s5_build_ref_map(loc_dir)
+        if loc_map:
+            _log(f"  ok  {len(loc_map)} location reference(s): {', '.join(loc_map.keys())}")
         else:
-            _log("  --  No character references — generating without identity anchoring")
+            _log("  --  No location references")
 
-        loc_map = {}
-        if loc_dir and loc_dir.exists():
-            loc_map = _s5_build_ref_map(loc_dir)
-            if loc_map:
-                _log(f"  ok  {len(loc_map)} location reference(s): {', '.join(loc_map.keys())}")
-            else:
-                _log("  --  No location references")
+    # Prepare all tasks sequentially (ref matching needs last_char state)
+    tasks = []
+    last_char = ""
+    for i, shot in enumerate(shots):
+        sn = shot["num"] or (i + 1)
+        desc = shot["shot_description"]
+        if not desc:
+            _log(f"  !!  Shot {sn}: no description — skipping")
+            continue
 
-        generated = 0
-        last_char = ""
-        for i, shot in enumerate(shots):
-            sn = shot["num"] or (i + 1)
-            desc = shot["shot_description"]
-            if not desc:
-                _log(f"  !!  Shot {sn}: no description — skipping")
-                jobs[job_id]["progress"]["completed"] = i + 1
-                continue
+        ref_names, ref_instruction, last_char, ref_imgs = _s5_select_refs(shot, ref_map, last_char)
 
-            ref_names, ref_instruction, last_char, ref_imgs = _s5_select_refs(shot, ref_map, last_char)
+        if loc_map:
+            loc_names = _s5_match_characters(desc, shot.get("shot_detail", ""), loc_map)
+            for ln in loc_names:
+                entry = loc_map.get(ln, {})
+                lpath = entry.get("path")
+                if lpath and Path(lpath).exists():
+                    ref_imgs.append({"name": f"Location: {ln}", "path": Path(lpath)})
 
-            if loc_map:
-                loc_names = _s5_match_characters(desc, shot.get("shot_detail", ""), loc_map)
-                for ln in loc_names:
-                    entry = loc_map.get(ln, {})
-                    lpath = entry.get("path")
-                    if lpath and Path(lpath).exists():
-                        ref_imgs.append({"name": f"Location: {ln}", "path": Path(lpath)})
+        prompt = S5_PROMPT_PREFIX + ref_instruction + desc + " " + S5_NEGATIVE + S5_PROMPT_SUFFIX
+        jobs[job_id]["s5_prompts"][sn] = prompt
+        tasks.append((i, sn, shot, prompt, list(ref_imgs), list(ref_names)))
 
-            prompt = S5_PROMPT_PREFIX + ref_instruction + desc + " " + S5_NEGATIVE + S5_PROMPT_SUFFIX
-            jobs[job_id]["s5_prompts"][sn] = prompt
+    # Execute image generation with key pool
+    num_workers = _madeye_pool.key_count if _madeye_pool else 1
+    _log(f"  >>  Generating {len(tasks)} shots with {num_workers} key(s)")
+    generated = 0
+    _gen_lock = threading.Lock()
 
-            jobs[job_id]["progress"]["stage"] = f"Shot {i+1}/{len(shots)}: generating"
-            ref_label = f" chars=[{', '.join(ref_names)}]" if ref_names else ""
-            img_label = f" refs={len(ref_imgs)}" if ref_imgs else ""
-            _log(f"  ... Shot {sn} ({i+1}/{len(shots)}){ref_label}{img_label}")
+    def _s5_gen_task(task_tuple):
+        nonlocal generated
+        idx, sn, shot, prompt, ref_imgs, ref_names = task_tuple
+        ref_label = f" chars=[{', '.join(ref_names)}]" if ref_names else ""
+        img_label = f" refs={len(ref_imgs)}" if ref_imgs else ""
+        _log(f"  ... Shot {sn} ({idx+1}/{len(shots)}){ref_label}{img_label}")
 
-            url = _s5_generate_one(prompt, job_id, sn, job_dir, ref_images=ref_imgs)
+        key = _madeye_pool.acquire() if _madeye_pool else None
+        try:
+            url = _s5_generate_one(prompt, job_id, sn, job_dir, ref_images=ref_imgs, api_key=key)
+        finally:
+            if _madeye_pool:
+                _madeye_pool.release_notify()
+
+        with _gen_lock:
             if url:
                 shot["preview_1"] = url
                 generated += 1
                 _log(f"  ok  Shot {sn} saved")
             else:
                 _log(f"  x   Shot {sn}: generation failed")
+            jobs[job_id]["progress"]["completed"] = generated
 
-            jobs[job_id]["progress"]["completed"] = i + 1
+    with ThreadPoolExecutor(max_workers=num_workers) as pool:
+        list(pool.map(_s5_gen_task, tasks))
 
-            if i < len(shots) - 1:
-                _log(f"  ... Rate-limit pause ({S5_RATE_LIMIT_DELAY}s)...")
-                time.sleep(S5_RATE_LIMIT_DELAY)
+    _log(f"\n  Writing output Excel...")
+    output_name = f"{excel_path.stem}_with_images.xlsx"
+    output_path = job_dir / output_name
+    _s5_write_output_excel(shots, excel_path, output_path, job_dir)
 
-        _log(f"\n  Writing output Excel...")
-        output_name = f"{excel_path.stem}_with_images.xlsx"
-        output_path = job_dir / output_name
-        _s5_write_output_excel(shots, excel_path, output_path, job_dir)
+    jobs[job_id]["output_file"] = output_name
+    jobs[job_id]["output_files"] = [output_name]
 
-        jobs[job_id]["output_file"] = output_name
-        jobs[job_id]["output_files"] = [output_name]
+    _log(f"  Creating Google Sheet...")
+    sheet_title = f"Stage 5 — {excel_path.stem}"
+    sheet_url = _s5_create_google_sheet(shots, sheet_title)
+    if sheet_url:
+        jobs[job_id]["sheet_url"] = sheet_url
 
-        _log(f"  Creating Google Sheet...")
-        sheet_title = f"Stage 5 — {excel_path.stem}"
-        sheet_url = _s5_create_google_sheet(shots, sheet_title)
-        if sheet_url:
-            jobs[job_id]["sheet_url"] = sheet_url
+    tok = jobs[job_id]["tokens"]
+    s5_cost = generated * S5_COST_PER_IMAGE
+    jobs[job_id]["file_tokens"].append({
+        "name": "Shot images",
+        "images": generated,
+        "cost": round(s5_cost, 4),
+    })
+    _log(f"\n{'=' * 60}")
+    _log(f"  STAGE 5 COMPLETE — {generated}/{len(shots)} images generated")
+    _log(f"  API calls: {tok['calls']}  |  Images: {generated}  |  Est. cost: ${s5_cost:.2f}")
+    _log(f"  Output: {output_name}")
+    if sheet_url:
+        _log(f"  Google Sheet: {sheet_url}")
+    _log(f"{'=' * 60}\n")
 
+
+def run_stage5_pipeline(job_id: str, job_dir: Path, excel_path: Path, char_dir: Path, loc_dir: Path = None):
+    """Standalone entry point (called from API route)."""
+    log_queue = jobs[job_id]["queue"]
+    _set_job_context(job_id, log_queue)
+    try:
+        _run_stage5_core(job_id, job_dir, excel_path, char_dir, loc_dir)
         jobs[job_id]["status"] = "done"
-
-        tok = jobs[job_id]["tokens"]
-        jobs[job_id]["file_tokens"].append({
-            "name": "Shot images",
-            "images": tok["output"],
-            "cost": round(tok["output"] * S5_COST_PER_IMAGE, 4),
-        })
-        cost = tok["output"] * S5_COST_PER_IMAGE
-        _log(f"\n{'=' * 60}")
-        _log(f"  STAGE 5 COMPLETE — {generated}/{len(shots)} images generated")
-        _log(f"  API calls: {tok['calls']}  |  Images: {tok['output']}  |  Est. cost: ${cost:.2f}")
-        _log(f"  Output: {output_name}")
-        if sheet_url:
-            _log(f"  Google Sheet: {sheet_url}")
-        _log(f"{'=' * 60}\n")
-
     except Exception as e:
         tb = traceback.format_exc()
         _log(f"\n[ERROR] {e}\n{tb}")
@@ -4035,6 +4260,161 @@ def run_stage6_batch(job_id, job_dir, pairs, whisper_model, subs, sub_color="yel
     except Exception as e:
         tb = traceback.format_exc()
         _log(f"\n[ERROR] {e}\n{tb}")
+        jobs[job_id]["status"] = "failed"
+    finally:
+        log_queue.put(None)
+
+
+# ── Pipeline orchestrator ─────────────────────────────────────────────────────
+
+def run_pipeline(job_id: str, job_dir: Path, scripts: list, show_name: str, workers: int):
+    """Run Stage 1 -> 2 -> (3 || 4) -> 5 as an automated pipeline."""
+    log_queue = jobs[job_id]["queue"]
+    _set_job_context(job_id, log_queue)
+
+    try:
+        _log(f"\n{'=' * 60}")
+        _log("  PIPELINE — Automated Stage 1 → 2 → 3+4 → 5")
+        _log(f"  Show: {show_name}  |  Episodes: {len(scripts)}")
+        _log(f"{'=' * 60}\n")
+
+        jobs[job_id]["progress"]["pipeline_stage"] = "stage1"
+        jobs[job_id]["progress"]["started_at"] = time.time()
+
+        # ── Stage 1: Reference Files ─────────────────────────────────────────
+        _log("\n  ══ PIPELINE STAGE 1: Reference File Generation ══")
+        scripts_dir = job_dir / "episodic scripts"
+        scripts_dir.mkdir(parents=True, exist_ok=True)
+        for s in scripts:
+            save_name = Path(s["filename"]).stem + ".md"
+            (scripts_dir / save_name).write_text(s["text"], encoding="utf-8")
+
+        _run_stage1_core(job_id, job_dir, "full", workers, None)
+
+        # Read Stage 1 outputs
+        show_files_dir = job_dir / "show level files"
+        ep_details_dir = job_dir / "episode details"
+
+        ref_files_global = {}
+        if show_files_dir.exists():
+            for key in ["show_tone_bible", "character_canvas", "location_reference"]:
+                matches = list(show_files_dir.glob(f"{key}*.md"))
+                if matches:
+                    ref_files_global[key] = matches[-1].read_text(encoding="utf-8")
+
+        detail_files = []
+        if ep_details_dir.exists():
+            for f in sorted(ep_details_dir.glob("*.md")):
+                detail_files.append((f.name, f.read_text(encoding="utf-8")))
+
+        _log(f"  Stage 1 outputs: {len(ref_files_global)} ref files, {len(detail_files)} episode details")
+
+        # ── Stage 2: Shot Breakdown ──────────────────────────────────────────
+        jobs[job_id]["progress"]["pipeline_stage"] = "stage2"
+        _log("\n  ══ PIPELINE STAGE 2: Shot Breakdown ══")
+
+        episodes = [{"name": s["name"], "script_text": s["text"]} for s in scripts]
+        _run_stage2_core(job_id, job_dir, episodes, ref_files_global, detail_files, workers=workers)
+
+        # Collect Stage 2 Excel outputs
+        excel_files = sorted(job_dir.glob("*_breakdown.xlsx"))
+        _log(f"  Stage 2 outputs: {len(excel_files)} Excel file(s)")
+
+        # ── Stage 3 + Stage 4 in parallel ────────────────────────────────────
+        jobs[job_id]["progress"]["pipeline_stage"] = "stage3+4"
+        _log("\n  ══ PIPELINE STAGES 3+4: Audit + Reference Images (parallel) ══")
+
+        s3_error = [None]
+        s4_error = [None]
+
+        def _pipeline_stage3():
+            try:
+                _set_job_context(job_id, log_queue)
+                for ep_excel in excel_files:
+                    ep_name = ep_excel.stem.replace("_breakdown", "")
+                    script_match = next((s for s in scripts if re.sub(r'[^a-zA-Z0-9_\-]', '_', s["name"]) == ep_name), None)
+                    if not script_match:
+                        script_match = scripts[0] if scripts else None
+                    if script_match:
+                        script_md_path = job_dir / f"{ep_name}.md"
+                        script_md_path.write_text(script_match["text"], encoding="utf-8")
+                        _log(f"  [S3] Auditing {ep_excel.name}...")
+                        _run_s3_one(job_id, job_dir, ep_excel, script_match["text"])
+            except Exception as e:
+                s3_error[0] = e
+                _log(f"  [S3] ERROR: {e}")
+
+        def _pipeline_stage4():
+            try:
+                _set_job_context(job_id, log_queue)
+                canvas_text = ref_files_global.get("character_canvas", "")
+                location_text = ref_files_global.get("location_reference", "")
+                if canvas_text or location_text:
+                    items = []
+                    if canvas_text:
+                        canvas_matches = list(show_files_dir.glob("character_canvas*.md"))
+                        if canvas_matches:
+                            items.extend(_s4_parse_md(canvas_matches[-1]))
+                    if location_text:
+                        loc_matches = list(show_files_dir.glob("location_reference*.md"))
+                        if loc_matches:
+                            items.extend(_s4_parse_md(loc_matches[-1]))
+                    if items:
+                        _log(f"  [S4] Generating {len(items)} reference images...")
+                        _run_stage4_core(job_id, job_dir, items)
+                    else:
+                        _log("  [S4] No items parsed from reference files — skipping")
+                else:
+                    _log("  [S4] No character canvas or location reference — skipping Stage 4")
+            except Exception as e:
+                s4_error[0] = e
+                _log(f"  [S4] ERROR: {e}")
+
+        t3 = threading.Thread(target=_pipeline_stage3)
+        t4 = threading.Thread(target=_pipeline_stage4)
+        t3.start()
+        t4.start()
+        t3.join()
+        t4.join()
+
+        if s3_error[0]:
+            _log(f"  !! Stage 3 failed: {s3_error[0]}")
+        if s4_error[0]:
+            _log(f"  !! Stage 4 failed: {s4_error[0]}")
+
+        # ── Stage 5: Shot Image Generation ───────────────────────────────────
+        jobs[job_id]["progress"]["pipeline_stage"] = "stage5"
+        _log("\n  ══ PIPELINE STAGE 5: Shot Image Generation ══")
+
+        # Find audited Excels (Stage 3 output) or fall back to Stage 2 output
+        audited_excels = sorted(job_dir.glob("*_audited.xlsx"))
+        s5_excels = audited_excels if audited_excels else excel_files
+
+        # Find Stage 4 reference image dir
+        s4_images_dir = job_dir / "images"
+        char_dir = s4_images_dir if s4_images_dir.exists() else None
+        loc_dir = char_dir  # Same dir for both in Stage 4
+
+        for ep_excel in s5_excels:
+            _log(f"  Running Stage 5 for {ep_excel.name}...")
+            _run_stage5_core(job_id, job_dir, ep_excel, char_dir, loc_dir)
+
+        # ── Pipeline complete ────────────────────────────────────────────────
+        jobs[job_id]["progress"]["pipeline_stage"] = "complete"
+        tok = jobs[job_id]["tokens"]
+        total_cost = sum(ft.get("cost", 0) for ft in jobs[job_id].get("file_tokens", []))
+
+        _log(f"\n{'=' * 60}")
+        _log("  PIPELINE COMPLETE")
+        _log(f"  Tokens: {tok['input']:,} input / {tok['output']:,} output / {tok['calls']} calls")
+        _log(f"  Cost: ${total_cost:.4f}")
+        _log(f"{'=' * 60}\n")
+
+        jobs[job_id]["status"] = "done"
+
+    except Exception as e:
+        tb = traceback.format_exc()
+        _log(f"\n[PIPELINE ERROR] {e}\n{tb}")
         jobs[job_id]["status"] = "failed"
     finally:
         log_queue.put(None)
@@ -4715,10 +5095,10 @@ def api_stage5_regen():
                 _log(f"  ok  Excel updated: {output_name}")
 
             tok = jobs[regen_job_id]["tokens"]
-            cost = tok["output"] * S5_COST_PER_IMAGE
+            regen_cost = regen_count * S5_COST_PER_IMAGE
             _log(f"\n{'=' * 60}")
             _log(f"  REGEN COMPLETE — {regen_count}/{len(shot_nums)} shots regenerated")
-            _log(f"  API calls: {tok['calls']}  |  Images: {tok['output']}  |  Est. cost: ${cost:.2f}")
+            _log(f"  API calls: {tok['calls']}  |  Images: {regen_count}  |  Est. cost: ${regen_cost:.2f}")
             _log(f"{'=' * 60}\n")
 
             jobs[regen_job_id]["status"] = "done"
@@ -4868,6 +5248,63 @@ def api_stage5_resume():
         "already_done": len(existing_imgs),
         "remaining": len(missing),
     })
+
+
+# Pipeline ──
+
+@app.route("/api/pipeline/run", methods=["POST"])
+def api_pipeline_run():
+    if not ARGUS_API_KEY or not ARGUS_BASE_URL:
+        return jsonify({"error": "ARGUS_API_KEY / ARGUS_BASE_URL not set"}), 500
+
+    files = request.files.getlist("scripts")
+    show_name = request.form.get("show_name", "").strip() or "Untitled Show"
+    workers = int(request.form.get("workers", "3") or "3")
+
+    if not files or all(f.filename == "" for f in files):
+        return jsonify({"error": "No script files uploaded"}), 400
+
+    job_id = str(uuid.uuid4())
+    job_dir = WORKSPACE / f"pipeline_{job_id}"
+    job_dir.mkdir(parents=True, exist_ok=True)
+
+    scripts = []
+    for f in files:
+        if f.filename:
+            text = _read_upload_as_text(f)
+            scripts.append({
+                "filename": f.filename,
+                "name": Path(f.filename).stem,
+                "text": text,
+            })
+
+    log_queue = queue.Queue()
+    jobs[job_id] = {
+        "status": "running",
+        "queue": log_queue,
+        "job_type": "pipeline",
+        "job_dir": job_dir,
+        "tokens": {"input": 0, "output": 0, "calls": 0},
+        "tokens_lock": threading.Lock(),
+        "output_file": None,
+        "output_files": [],
+        "file_tokens": [],
+        "progress": {
+            "pipeline_stage": "starting",
+            "total": 5,
+            "completed": 0,
+            "stage": "Initializing pipeline",
+            "started_at": time.time(),
+        },
+    }
+
+    threading.Thread(
+        target=run_pipeline,
+        args=(job_id, job_dir, scripts, show_name, workers),
+        daemon=True,
+    ).start()
+
+    return jsonify({"job_id": job_id})
 
 
 # Stage 6 ──
@@ -5053,6 +5490,9 @@ def api_status(job_id: str):
     }
     if job.get("flags"):
         resp["flags"] = job["flags"]
+    if job.get("job_type") == "pipeline":
+        resp["job_type"] = "pipeline"
+        resp["pipeline_stage"] = prog.get("pipeline_stage", "")
     return jsonify(resp)
 
 
@@ -5061,6 +5501,6 @@ def api_status(job_id: str):
 if __name__ == "__main__":
     print("\n  FRAMES — Shot Generation Pipeline")
     print(f"  Argus : {ARGUS_MODEL or '(not set)'}")
-    print(f"  MadEye: {'configured' if MADEYE_API_KEY else '(not set)'} — {MADEYE_BASE_URL or '(no URL)'}")
+    print(f"  MadEye: {len(MADEYE_API_KEYS)} key(s) — {MADEYE_BASE_URL or '(no URL)'}")
     print("  Open  : http://localhost:5000\n")
     app.run(host="127.0.0.1", port=5000, debug=False, threaded=True)

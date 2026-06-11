@@ -5,12 +5,106 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FRAMES</title>
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+:root {
+  --bg-body: #0f1117; --bg-surface: #161b22; --bg-input: #0d1117;
+  --border: #30363d; --border-subtle: rgba(48,54,61,.6);
+  --text: #e2e8f0; --text-muted: #8b949e; --text-dim: #c9d1d9;
+  --accent: #58a6ff; --accent-glow: rgba(88,166,255,.15);
+  --card-bg: rgba(22,27,34,.85); --card-hover-shadow: rgba(0,0,0,.5);
+  --home-gradient: radial-gradient(ellipse at 50% 30%, rgba(88,166,255,.06) 0%, #0f1117 70%);
+  --panel-bg: #161b22; --right-bg: #0d1117;
+  --run-btn-bg: #238636; --run-btn-hover: #2ea043;
+  --log-bg: #0d1117;
+  --token-bg: #161b22; --token-border: #30363d;
+  --neon-opacity: 1;
+}
+
+[data-theme="light"] {
+  --bg-body: #f5f6f8; --bg-surface: #ffffff; --bg-input: #f0f2f5;
+  --border: #d0d7de; --border-subtle: rgba(208,215,222,.6);
+  --text: #1f2328; --text-muted: #656d76; --text-dim: #424a53;
+  --accent: #0969da; --accent-glow: rgba(9,105,218,.12);
+  --card-bg: rgba(255,255,255,.95); --card-hover-shadow: rgba(0,0,0,.08);
+  --home-gradient: radial-gradient(ellipse at 50% 30%, rgba(9,105,218,.05) 0%, #f5f6f8 70%);
+  --panel-bg: #ffffff; --right-bg: #f8f9fb;
+  --run-btn-bg: #1a7f37; --run-btn-hover: #1a7f37;
+  --log-bg: #f8f9fb;
+  --token-bg: #ffffff; --token-border: #d0d7de;
+  --neon-opacity: 0.7;
+}
+/* Light mode overrides for all UI components */
+[data-theme="light"] .right { background: #f8f9fb; }
+[data-theme="light"] .right-tabs { background: #ffffff; border-bottom-color: #d0d7de; }
+[data-theme="light"] .tab-btn { color: #656d76; }
+[data-theme="light"] .tab-btn.active { color: #0969da; border-bottom-color: #0969da; }
+[data-theme="light"] .log-el { background: #f8f9fb; color: #424a53; }
+[data-theme="light"] .log-el .line-info { color: #0969da; }
+[data-theme="light"] .log-el .line-ok { color: #1a7f37; }
+[data-theme="light"] .log-el .line-err { color: #cf222e; }
+[data-theme="light"] .log-el .line-warn { color: #9a6700; }
+[data-theme="light"] .drop-zone:hover,
+[data-theme="light"] .drop-zone.drag-over { border-color: #0969da; background: #edf4fc; }
+[data-theme="light"] .dz-hint { color: #656d76; }
+[data-theme="light"] .dz-hint b { color: #0969da; }
+[data-theme="light"] .file-tag { background: #eaeef2; color: #424a53; border-color: #d0d7de; }
+[data-theme="light"] .toggle-row { border-color: #d0d7de; }
+[data-theme="light"] .toggle-row button { background: #f0f2f5; color: #656d76; }
+[data-theme="light"] .toggle-row button.active { background: #0969da; color: #fff; }
+[data-theme="light"] .ref-row { background: #f0f2f5; border-color: #d0d7de; }
+[data-theme="light"] .ref-row .ref-lbl { color: #424a53; }
+[data-theme="light"] .run-btn { background: #0969da; box-shadow: 0 1px 3px rgba(9,105,218,.2); }
+[data-theme="light"] .run-btn:hover:not(:disabled) { background: #0860c4; }
+[data-theme="light"] .status-msg { color: #656d76; }
+[data-theme="light"] .status-msg.err { color: #cf222e; }
+[data-theme="light"] .status-msg.ok { color: #1a7f37; }
+[data-theme="light"] .divider { border-top-color: #d0d7de; }
+[data-theme="light"] .file-row { background: #ffffff; border-color: #d0d7de; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+[data-theme="light"] .file-row .fname { color: #1f2328; }
+[data-theme="light"] .dl-btn { background: #edf4fc; border-color: #0969da; color: #0969da; }
+[data-theme="light"] .dl-btn:hover { background: #dbeafe; }
+[data-theme="light"] .empty-msg { color: #8b949e; }
+[data-theme="light"] .progress-box { background: #ffffff; border-color: #d0d7de; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+[data-theme="light"] .progress-label { color: #1f2328; }
+[data-theme="light"] .progress-bar { background: #e1e4e8; }
+[data-theme="light"] .progress-fill { background: linear-gradient(90deg, #0969da, #54aeff); }
+[data-theme="light"] .preview-card { background: #ffffff; border-color: #d0d7de; }
+[data-theme="light"] .preview-card .pv-bar { background: #f8f9fb; border-top-color: #d0d7de; }
+[data-theme="light"] .preview-card .pv-num { background: #0969da; }
+[data-theme="light"] .preview-card .pv-line { color: #656d76; }
+[data-theme="light"] .preview-card .pv-fail { color: #8b949e; background: #f0f2f5; }
+[data-theme="light"] .shot-card { background: #ffffff; border-color: #d0d7de; }
+[data-theme="light"] .shot-card:hover { border-color: #0969da; }
+[data-theme="light"] .shot-card .shot-num { background: rgba(255,255,255,.9); color: #1f2328; }
+[data-theme="light"] .token-bar { background: #ffffff; border-top-color: #d0d7de; }
+[data-theme="light"] .token-bar .tb-key { color: #656d76; }
+[data-theme="light"] .token-bar .tb-val { color: #1f2328; }
+[data-theme="light"] .token-bar .tb-item { border-right-color: #d0d7de; }
+[data-theme="light"] .save-db-btn { background: #ecfdf5; border-color: #1a7f37; color: #1a7f37; }
+[data-theme="light"] .save-db-btn:hover:not(:disabled) { background: #1a7f37; color: #fff; }
+[data-theme="light"] .workers-row span { color: #656d76; }
+[data-theme="light"] .home-screen::before { background: radial-gradient(circle at 30% 60%, rgba(9,105,218,.03) 0%, transparent 50%), radial-gradient(circle at 70% 40%, rgba(6,182,212,.03) 0%, transparent 50%); }
+[data-theme="light"] .home-card::before { background: linear-gradient(135deg, transparent 30%, rgba(9,105,218,.3) 50%, transparent 70%); }
+[data-theme="light"] .home-logo { filter: drop-shadow(0 0 12px rgba(9,105,218,.2)); }
+[data-theme="light"] .stage-card::after { background: linear-gradient(transparent, rgba(255,255,255,.95) 30%); }
+[data-theme="light"] .stage-card:hover { box-shadow: 0 0 30px var(--glow), 0 12px 36px rgba(0,0,0,.08); }
+[data-theme="light"] #pipeline-view .panel { background: linear-gradient(180deg, #ffffff 0%, #f8f9fb 100%); border-right-color: rgba(6,182,212,.12); }
+[data-theme="light"] #pipeline-view .drop-zone { border-color: rgba(6,182,212,.25); background: rgba(6,182,212,.03); }
+[data-theme="light"] #pipeline-view .drop-zone:hover { border-color: #06b6d4; background: rgba(6,182,212,.06); }
+[data-theme="light"] #pipeline-view .run-btn { background: linear-gradient(135deg, #0891b2, #06b6d4); }
+[data-theme="light"] .pipe-info-box { background: rgba(6,182,212,.05); border-color: rgba(6,182,212,.2); }
+[data-theme="light"] .pipe-live-stage { background: #ffffff; border-color: #d0d7de; }
+[data-theme="light"] .pipe-live-stage.active { border-color: #0891b2; box-shadow: 0 0 8px rgba(6,182,212,.08); }
+[data-theme="light"] .pipe-live-stage.done { border-color: #1a7f37; }
+[data-theme="light"] .pls-bar { background: #e1e4e8; }
+[data-theme="light"] .pipe-cost-banner { background: rgba(6,182,212,.04); border-color: rgba(6,182,212,.15); }
+
 body {
-  font-family: 'Segoe UI', system-ui, sans-serif;
-  background: #0f1117;
-  color: #e2e8f0;
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg-body);
+  color: var(--text);
   height: 100vh;
   display: flex;
   flex-direction: column;
@@ -18,40 +112,311 @@ body {
 }
 
 header {
-  padding: 12px 24px;
-  background: #161b22;
-  border-bottom: 1px solid #30363d;
+  padding: 14px 28px;
+  background: linear-gradient(135deg, var(--bg-surface) 0%, rgba(22,27,34,.95) 100%);
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 12px rgba(0,0,0,.3);
+  position: relative; z-index: 10;
+}
+/* Logo + brand */
+.hdr-brand { display: flex; align-items: center; gap: 12px; }
+.logo-glow {
+  position: relative; display: flex; align-items: center; justify-content: center;
+}
+.logo-glow::before {
+  content: ''; position: absolute; inset: -6px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(88,166,255,.35) 0%, rgba(139,92,246,.2) 40%, transparent 70%);
+  filter: blur(8px); animation: logoBreath 3s ease-in-out infinite;
+}
+@keyframes logoBreath { 0%, 100% { opacity: .6; transform: scale(1); } 50% { opacity: 1; transform: scale(1.15); } }
+header img.logo { height: 34px; width: auto; position: relative; z-index: 1; filter: drop-shadow(0 0 6px rgba(88,166,255,.4)); }
+header h1 {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  font-size: 22px; font-weight: 800; letter-spacing: 5px; text-transform: uppercase;
+  background: linear-gradient(135deg, #e2e8f0 0%, #58a6ff 40%, #a78bfa 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  filter: drop-shadow(0 0 8px rgba(88,166,255,.2));
+}
+header span { font-size: 12px; color: var(--text-muted); }
+
+/* Home button */
+.hdr-home-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 16px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--bg-input); color: var(--text-muted);
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: all .25s cubic-bezier(.4,0,.2,1);
+}
+.hdr-home-btn:hover {
+  color: #58a6ff; border-color: rgba(88,166,255,.4);
+  background: rgba(88,166,255,.08);
+  box-shadow: 0 0 12px rgba(88,166,255,.1);
+  transform: translateX(-2px);
+}
+.hdr-home-icon { font-size: 15px; transition: transform .25s; }
+.hdr-home-btn:hover .hdr-home-icon { transform: translateX(-3px); }
+
+[data-theme="light"] header { background: linear-gradient(135deg, #ffffff 0%, #f0f2f5 100%); box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+[data-theme="light"] header h1 { background: linear-gradient(135deg, #1f2328 0%, #0969da 40%, #7c3aed 100%); -webkit-background-clip: text; background-clip: text; filter: none; }
+[data-theme="light"] .logo-glow::before { background: radial-gradient(circle, rgba(9,105,218,.2) 0%, rgba(124,58,237,.1) 40%, transparent 70%); }
+[data-theme="light"] .hdr-home-btn:hover { color: #0969da; border-color: rgba(9,105,218,.3); background: rgba(9,105,218,.06); }
+
+/* Theme toggle */
+.theme-toggle {
+  width: 44px; height: 24px; border-radius: 12px; border: none; cursor: pointer;
+  background: var(--border); position: relative; transition: background .3s;
   flex-shrink: 0;
 }
-header img.logo { height: 28px; width: auto; }
-header h1 { font-size: 18px; font-weight: 900; color: #e2e8f0; letter-spacing: 2px; text-transform: uppercase; }
-header span { font-size: 12px; color: #8b949e; margin-left: auto; }
+.theme-toggle::after {
+  content: ''; position: absolute; top: 3px; left: 3px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--text); transition: transform .3s;
+}
+[data-theme="light"] .theme-toggle { background: var(--accent); }
+[data-theme="light"] .theme-toggle::after { transform: translateX(20px); background: #fff; }
+.theme-icon { font-size: 14px; margin-right: 2px; }
 
 .stage-nav {
   display: flex;
-  background: #161b22;
-  border-bottom: 2px solid #30363d;
-  padding: 0 24px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 20px;
+  gap: 6px;
   flex-shrink: 0;
   overflow-x: auto;
+  box-shadow: 0 1px 6px rgba(0,0,0,.15);
 }
 .stage-tab {
-  padding: 10px 22px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #8b949e;
-  background: none;
-  border: none;
-  border-bottom: 3px solid transparent;
-  margin-bottom: -2px;
+  padding: 10px 18px;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
   cursor: pointer;
-  transition: color .15s, border-color .15s;
+  transition: all .25s cubic-bezier(.4,0,.2,1);
+  white-space: nowrap;
+  position: relative;
 }
-.stage-tab.active { color: #e2e8f0; border-bottom-color: #58a6ff; }
-.stage-tab:hover:not(.active) { color: #c9d1d9; }
+.stage-tab:nth-child(1) { --tab-neon: #06b6d4; --tab-bg: rgba(6,182,212,.08); --tab-border: rgba(6,182,212,.25); }
+.stage-tab:nth-child(2) { --tab-neon: #3b82f6; --tab-bg: rgba(59,130,246,.08); --tab-border: rgba(59,130,246,.25); }
+.stage-tab:nth-child(3) { --tab-neon: #8b5cf6; --tab-bg: rgba(139,92,246,.08); --tab-border: rgba(139,92,246,.25); }
+.stage-tab:nth-child(4) { --tab-neon: #ec4899; --tab-bg: rgba(236,72,153,.08); --tab-border: rgba(236,72,153,.25); }
+.stage-tab:nth-child(5) { --tab-neon: #f59e0b; --tab-bg: rgba(245,158,11,.08); --tab-border: rgba(245,158,11,.25); }
+.stage-tab:nth-child(6) { --tab-neon: #10b981; --tab-bg: rgba(16,185,129,.08); --tab-border: rgba(16,185,129,.25); }
+.stage-tab:nth-child(7) { --tab-neon: #06b6d4; --tab-bg: rgba(6,182,212,.08); --tab-border: rgba(6,182,212,.25); }
+.stage-tab:hover {
+  color: var(--tab-neon); background: var(--tab-bg);
+  border-color: var(--tab-border);
+  text-shadow: 0 0 10px var(--tab-neon);
+  transform: translateY(-1px);
+}
+.stage-tab.active {
+  color: var(--tab-neon, #58a6ff);
+  background: var(--tab-bg, rgba(88,166,255,.08));
+  border-color: var(--tab-border, rgba(88,166,255,.3));
+  box-shadow: 0 0 14px rgba(88,166,255,.1), 0 2px 8px rgba(0,0,0,.15);
+  text-shadow: 0 0 8px var(--tab-neon, rgba(88,166,255,.4));
+}
+[data-theme="light"] .stage-nav { background: #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,.04); }
+[data-theme="light"] .stage-tab:hover { background: rgba(0,0,0,.04); border-color: var(--tab-border); }
+[data-theme="light"] .stage-tab.active { background: rgba(0,0,0,.05); }
+
+/* Home screen */
+.home-screen {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  background: var(--home-gradient);
+  position: relative; overflow: hidden;
+}
+.home-screen::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(circle at 30% 60%, rgba(139,92,246,.04) 0%, transparent 50%),
+              radial-gradient(circle at 70% 40%, rgba(6,182,212,.04) 0%, transparent 50%);
+}
+.home-content { text-align: center; max-width: 780px; padding: 40px 24px; position: relative; z-index: 1; }
+.home-brand { margin-bottom: 56px; }
+.home-logo { height: 56px; width: auto; margin-bottom: 20px; filter: drop-shadow(0 0 20px rgba(88,166,255,.3)); }
+.home-title {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  font-size: 52px; font-weight: 800; letter-spacing: 10px; text-transform: uppercase;
+  background: linear-gradient(135deg, var(--text) 0%, var(--accent) 50%, #a78bfa 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; margin-bottom: 10px;
+  text-shadow: none;
+}
+.home-subtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px; color: var(--text-muted); font-weight: 500; letter-spacing: 3px; text-transform: uppercase;
+}
+.home-cards { display: flex; gap: 28px; justify-content: center; }
+.home-card {
+  flex: 1; max-width: 320px; padding: 32px 28px 28px; border-radius: 18px;
+  background: rgba(22,27,34,.5); border: 1px solid rgba(255,255,255,.06);
+  cursor: pointer; position: relative; overflow: hidden;
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  transition: all .4s cubic-bezier(.4,0,.2,1);
+  transform-style: preserve-3d;
+}
+.home-card::before {
+  content: ''; position: absolute; inset: 0; border-radius: 18px; padding: 1px;
+  background: linear-gradient(135deg, transparent 20%, rgba(88,166,255,.35) 50%, transparent 80%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  opacity: 0; transition: opacity .4s;
+}
+.home-card:hover::before { opacity: 1; }
+.home-card:hover {
+  transform: translateY(-10px) scale(1.06);
+  box-shadow: 0 0 40px rgba(88,166,255,.12), 0 20px 50px rgba(0,0,0,.5);
+  border-color: rgba(255,255,255,.1);
+  background: rgba(22,27,34,.7);
+}
+
+/* Icon wraps */
+.home-card-icon-wrap {
+  width: 52px; height: 52px; border-radius: 14px; display: flex;
+  align-items: center; justify-content: center; margin-bottom: 18px;
+  transition: all .4s; position: relative;
+}
+.home-card-icon-pipe {
+  background: rgba(6,182,212,.1); color: #06b6d4;
+  border: 1px solid rgba(6,182,212,.2);
+}
+.home-card-icon-stages {
+  background: rgba(139,92,246,.1); color: #a78bfa;
+  border: 1px solid rgba(139,92,246,.2);
+}
+.home-card:first-child:hover .home-card-icon-wrap {
+  background: rgba(6,182,212,.2); box-shadow: 0 0 20px rgba(6,182,212,.25);
+  border-color: rgba(6,182,212,.4);
+}
+.home-card:last-child:hover .home-card-icon-wrap {
+  background: rgba(139,92,246,.2); box-shadow: 0 0 20px rgba(139,92,246,.25);
+  border-color: rgba(139,92,246,.4);
+}
+
+.home-card h2 {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  font-size: 24px; font-weight: 600; color: var(--text); margin-bottom: 12px;
+  letter-spacing: 1.5px;
+  -webkit-text-fill-color: unset;
+  transition: color .4s, text-shadow .4s, letter-spacing .4s;
+}
+.home-card:hover h2 { letter-spacing: 2.5px; }
+.home-card:first-child h2 { color: #e2e8f0; }
+.home-card:first-child:hover h2 { color: #22d3ee; text-shadow: 0 0 18px rgba(6,182,212,.3); }
+.home-card:last-child h2 { color: #e2e8f0; }
+.home-card:last-child:hover h2 { color: #c4b5fd; text-shadow: 0 0 18px rgba(139,92,246,.3); }
+[data-theme="light"] .home-card h2 { color: #1f2328; }
+[data-theme="light"] .home-card:first-child:hover h2 { color: #0891b2; }
+[data-theme="light"] .home-card:last-child:hover h2 { color: #7c3aed; }
+.home-card-desc {
+  font-family: 'Inter', sans-serif;
+  font-size: 13.5px; color: var(--text-muted); line-height: 1.8; margin-bottom: 20px;
+  font-weight: 400; letter-spacing: .3px;
+}
+
+/* Pipeline flowchart */
+.hcf-flow {
+  display: flex; align-items: center; justify-content: center; gap: 0; margin-top: 2px;
+}
+.hcf-node {
+  font-family: 'Inter', sans-serif;
+  font-size: 9px; font-weight: 600; letter-spacing: .3px;
+  padding: 3px 7px; border-radius: 4px;
+  background: rgba(6,182,212,.06); color: #06b6d4;
+  border: 1px solid rgba(6,182,212,.15);
+  white-space: nowrap; transition: all .3s;
+}
+.hcf-line {
+  width: 10px; height: 1px; background: rgba(6,182,212,.3); flex-shrink: 0;
+  position: relative;
+}
+.hcf-line::after {
+  content: ''; position: absolute; right: 0; top: -2px;
+  border: 2px solid transparent; border-left: 3px solid rgba(6,182,212,.4);
+}
+.home-card:first-child:hover .hcf-node {
+  background: rgba(6,182,212,.12); border-color: rgba(6,182,212,.3);
+  box-shadow: 0 0 6px rgba(6,182,212,.1);
+}
+.home-card:first-child:hover .hcf-line { background: rgba(6,182,212,.5); }
+.home-card:first-child:hover .hcf-line::after { border-left-color: rgba(6,182,212,.6); }
+
+/* Stages subtitle */
+.home-card-stages {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  font-size: 12px; color: var(--text-muted); text-align: center;
+}
+.hcs-line strong { font-weight: 700; color: var(--text-dim); letter-spacing: .3px; }
+
+.home-card:first-child:hover {
+  box-shadow: 0 0 50px rgba(6,182,212,.15), 0 20px 50px rgba(0,0,0,.5);
+  border-color: rgba(6,182,212,.2);
+}
+.home-card:first-child:hover h2 { color: #06b6d4; text-shadow: 0 0 12px rgba(6,182,212,.3); }
+.home-card:first-child:hover::before { background: linear-gradient(135deg, transparent 20%, rgba(6,182,212,.4) 50%, transparent 80%); }
+.home-card:last-child:hover {
+  box-shadow: 0 0 50px rgba(139,92,246,.15), 0 20px 50px rgba(0,0,0,.5);
+  border-color: rgba(139,92,246,.2);
+}
+.home-card:last-child:hover h2 { color: #a78bfa; text-shadow: 0 0 12px rgba(139,92,246,.3); }
+.home-card:last-child:hover::before { background: linear-gradient(135deg, transparent 20%, rgba(139,92,246,.4) 50%, transparent 80%); }
+
+/* Light mode cards */
+[data-theme="light"] .home-card { background: rgba(255,255,255,.7); border-color: rgba(0,0,0,.06); }
+[data-theme="light"] .home-card:hover { background: rgba(255,255,255,.85); }
+[data-theme="light"] .home-card-icon-pipe { background: rgba(6,182,212,.08); border-color: rgba(6,182,212,.15); }
+[data-theme="light"] .home-card-icon-stages { background: rgba(124,58,237,.08); border-color: rgba(124,58,237,.15); }
+[data-theme="light"] .hcf-step { background: rgba(6,182,212,.06); border-color: rgba(6,182,212,.12); }
+
+/* Stage picker grid */
+.stage-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 740px; margin: 0 auto; }
+.stage-card {
+  padding: 28px 20px; border-radius: 14px;
+  background: var(--card-bg); backdrop-filter: blur(8px);
+  border: 1px solid var(--border); cursor: pointer; text-align: left;
+  transition: all .4s cubic-bezier(.4,0,.2,1);
+  position: relative; overflow: hidden;
+}
+.stage-card::after {
+  content: attr(data-hover); position: absolute; bottom: 0; left: 0; right: 0;
+  padding: 0 20px; background: linear-gradient(transparent, var(--bg-body) 30%);
+  font-size: 11px; color: var(--text-muted); line-height: 1.5;
+  max-height: 0; opacity: 0; overflow: hidden;
+  transition: max-height .4s cubic-bezier(.4,0,.2,1), opacity .3s, padding .3s;
+}
+.stage-card:hover::after { max-height: 80px; opacity: 1; padding: 12px 20px 16px; }
+.stage-card:hover {
+  transform: translateY(-12px) scale(1.3);
+  border-color: var(--neon);
+  box-shadow: 0 0 50px var(--glow), 0 20px 60px rgba(0,0,0,.6);
+  z-index: 20;
+}
+.stage-card:nth-child(1) { --neon: #06b6d4; --glow: rgba(6,182,212,.2); }
+.stage-card:nth-child(2) { --neon: #3b82f6; --glow: rgba(59,130,246,.2); }
+.stage-card:nth-child(3) { --neon: #8b5cf6; --glow: rgba(139,92,246,.2); }
+.stage-card:nth-child(4) { --neon: #ec4899; --glow: rgba(236,72,153,.2); }
+.stage-card:nth-child(5) { --neon: #f59e0b; --glow: rgba(245,158,11,.2); }
+.stage-card:nth-child(6) { --neon: #10b981; --glow: rgba(16,185,129,.2); }
+.stage-card:hover .stage-card-num { background: var(--neon); box-shadow: 0 0 18px var(--glow); }
+.stage-card:hover h3 { color: var(--neon); text-shadow: 0 0 10px var(--glow); }
+.stage-card-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 50%; background: #58a6ff; color: #0d1117;
+  font-size: 14px; font-weight: 800; margin-bottom: 12px;
+  transition: all .3s;
+}
+.stage-card h3 { font-family: 'Plus Jakarta Sans', 'Inter', sans-serif; font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 6px; transition: color .3s; }
+.stage-card p { font-family: 'Inter', sans-serif; font-size: 11.5px; color: var(--text-muted); line-height: 1.5; transition: opacity .3s; }
+.stage-card:hover p { opacity: 0; }
 
 .main { flex: 1; overflow: hidden; position: relative; }
 .stage-view { display: none; position: absolute; inset: 0; }
@@ -60,41 +425,41 @@ header span { font-size: 12px; color: #8b949e; margin-left: auto; }
 .coming-soon {
   grid-column: 1/-1;
   display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px;
-  background: #0d1117; color: #8b949e;
+  background: var(--right-bg); color: var(--text-muted);
 }
-.coming-soon h2 { font-size: 17px; font-weight: 600; color: #c9d1d9; }
+.coming-soon h2 { font-size: 17px; font-weight: 600; color: var(--text-dim); }
 .coming-soon p  { font-size: 13px; }
 
 /* Left panel */
 .panel {
   padding: 16px 15px;
-  background: #161b22;
-  border-right: 1px solid #30363d;
+  background: var(--panel-bg);
+  border-right: 1px solid var(--border);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-.fl { display: block; font-size: 11px; font-weight: 700; color: #8b949e;
-      text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+.fl { display: block; font-family: 'Plus Jakarta Sans', 'Inter', sans-serif; font-size: 11px; font-weight: 700; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
 
 input[type="text"], input[type="number"], textarea, select {
   width: 100%; padding: 8px 10px;
-  background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
-  color: #e2e8f0; font-size: 13px; outline: none; font-family: inherit;
+  background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text); font-size: 13px; outline: none; font-family: inherit;
   transition: border-color .15s, box-shadow .15s;
 }
 input:focus, textarea:focus, select:focus {
-  border-color: #58a6ff; box-shadow: 0 0 0 3px rgba(88,166,255,.15);
+  border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow);
 }
 textarea { resize: vertical; min-height: 100px; }
 select { cursor: pointer; }
 
 /* Drop zone */
 .drop-zone {
-  border: 2px dashed #30363d; border-radius: 8px; padding: 16px;
-  text-align: center; cursor: pointer; position: relative; background: #0d1117;
+  border: 2px dashed var(--border); border-radius: 8px; padding: 16px;
+  text-align: center; cursor: pointer; position: relative; background: var(--bg-input);
   transition: border-color .15s, background .15s;
 }
 .drop-zone:hover, .drop-zone.drag-over { border-color: #58a6ff; background: #161b22; }
@@ -161,11 +526,14 @@ select { cursor: pointer; }
 .workers-row span { font-size: 12px; color: #8b949e; }
 
 .run-btn {
-  width: 100%; padding: 10px; background: #1f6feb; border: none; border-radius: 8px;
-  color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;
-  transition: background .15s, opacity .15s; box-shadow: 0 1px 3px rgba(31,111,235,.3);
+  width: 100%; padding: 11px; background: #1f6feb; border: none; border-radius: 10px;
+  color: #fff; font-size: 13px; font-weight: 700; cursor: pointer;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  transition: all .25s; box-shadow: 0 2px 8px rgba(31,111,235,.2);
+  display: flex; align-items: center; justify-content: center; gap: 8px;
 }
-.run-btn:hover:not(:disabled) { background: #388bfd; }
+.run-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(31,111,235,.3); }
+.run-btn:active:not(:disabled) { transform: scale(0.98); }
 .run-btn:disabled { opacity: .5; cursor: not-allowed; }
 
 .status-msg { font-size: 12px; text-align: center; min-height: 16px; color: #8b949e; }
@@ -186,26 +554,28 @@ select { cursor: pointer; }
 .save-db-btn:disabled { opacity: .5; cursor: not-allowed; }
 
 /* Right panel */
-.right { display: flex; flex-direction: column; overflow: hidden; background: #0d1117; }
+.right { display: flex; flex-direction: column; overflow: hidden; background: var(--right-bg); }
 
 .right-tabs {
-  display: flex; flex-wrap: wrap; border-bottom: 1px solid #30363d; padding: 0 12px;
-  gap: 2px; background: #161b22; flex-shrink: 0;
+  display: flex; flex-wrap: wrap; border-bottom: 1px solid var(--border); padding: 8px 12px;
+  gap: 4px; background: var(--bg-surface); flex-shrink: 0;
 }
 .tab-btn {
-  padding: 8px 10px; font-size: 12px; font-weight: 500; color: #8b949e;
-  background: none; border: none; border-bottom: 2px solid transparent;
-  cursor: pointer; transition: color .15s, border-color .15s; white-space: nowrap;
+  padding: 6px 12px; font-size: 11.5px; font-weight: 600; color: var(--text-muted);
+  background: none; border: none; border-radius: 6px; border-bottom: none;
+  cursor: pointer; transition: all .2s; white-space: nowrap;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
 }
-.tab-btn.active { color: #e2e8f0; border-bottom-color: #58a6ff; }
+.tab-btn:hover { background: rgba(88,166,255,.06); }
+.tab-btn.active { color: var(--accent); background: rgba(88,166,255,.08); border-bottom: none; }
 
 .tab-pane { display: none; flex: 1; overflow: hidden; flex-direction: column; }
 .tab-pane.active { display: flex; }
 
 .log-el {
   flex: 1; padding: 14px 18px; overflow-y: auto;
-  font-family: 'Consolas', 'Fira Code', monospace; font-size: 12.5px;
-  line-height: 1.7; color: #c9d1d9; white-space: pre-wrap; word-break: break-all; background: #0d1117;
+  font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11.5px;
+  line-height: 1.8; color: var(--text-dim); white-space: pre-wrap; word-break: break-all; background: var(--bg-body);
 }
 .log-el .line-ok   { color: #3fb950; }
 .log-el .line-err  { color: #f85149; }
@@ -220,27 +590,28 @@ select { cursor: pointer; }
 }
 .file-row {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 9px 14px; background: #161b22; border: 1px solid #30363d;
-  border-radius: 7px; margin-bottom: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.2);
+  padding: 9px 14px; background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: 8px; margin-bottom: 6px; transition: border-color .2s;
 }
-.file-row .fname { font-size: 13px; color: #e2e8f0; font-family: monospace; }
+.file-row:hover { border-color: var(--accent); }
+.file-row .fname { font-size: 13px; color: var(--text); font-family: 'JetBrains Mono', monospace; }
 .dl-btn {
-  padding: 4px 12px; background: #1c2d41; border: 1px solid #1f6feb;
-  border-radius: 4px; color: #58a6ff; font-size: 12px; cursor: pointer;
-  text-decoration: none; transition: background .15s;
+  padding: 4px 12px; background: rgba(88,166,255,.06); border: 1px solid var(--accent);
+  border-radius: 6px; color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer;
+  text-decoration: none; transition: all .2s;
 }
-.dl-btn:hover { background: #253d57; }
+.dl-btn:hover { background: var(--accent); color: #fff; }
 
 .empty-msg { font-size: 13px; color: #484f58; text-align: center; padding: 40px 0; }
 
 /* Progress bar */
-.progress-box { padding: 14px 16px; background: #161b22; border: 1px solid #30363d; border-radius: 8px; margin-bottom: 18px; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.progress-box { padding: 14px 16px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 18px; }
 .progress-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
-.progress-label { font-size: 13px; font-weight: 600; color: #e2e8f0; }
-.progress-eta { font-size: 11px; color: #8b949e; font-family: monospace; }
-.progress-bar { height: 8px; background: #21262d; border-radius: 4px; overflow: hidden; }
-.progress-fill { height: 100%; background: linear-gradient(90deg, #1f6feb, #58a6ff); transition: width .5s ease; }
-.progress-stage { margin-top: 8px; font-size: 11px; color: #8b949e; font-style: italic; }
+.progress-label { font-size: 13px; font-weight: 600; color: var(--text); }
+.progress-eta { font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+.progress-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), rgba(88,166,255,.7)); background-size: 200% 100%; animation: shimmer 2s linear infinite; transition: width .5s ease; }
+.progress-stage { margin-top: 8px; font-size: 11px; color: var(--text-muted); font-style: italic; }
 
 /* Image preview grid (read-only, larger) */
 .preview-grid {
@@ -291,7 +662,7 @@ select { cursor: pointer; }
 /* Token bar */
 .token-bar {
   display: flex; align-items: center; padding: 0 20px; height: 38px;
-  background: #161b22; border-top: 1px solid #30363d; flex-shrink: 0;
+  background: var(--bg-surface); border-top: 1px solid var(--border); flex-shrink: 0;
 }
 .token-bar .tb-label {
   color: #8b949e; font-weight: 700; text-transform: uppercase;
@@ -304,29 +675,1085 @@ select { cursor: pointer; }
 .token-bar .tb-item:last-child { border-right: none; }
 .token-bar .tb-key { color: #8b949e; font-size: 11px; }
 .token-bar .tb-val { color: #e2e8f0; font-weight: 700; font-family: monospace; font-size: 12px; }
+
+/* Pipeline tracker */
+.pipeline-tracker { padding: 20px; }
+.pipe-step { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
+.pipe-dot {
+  width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid var(--border); background: var(--bg-input);
+  transition: all .3s;
+}
+.pipe-dot.pending { border-color: var(--border); }
+.pipe-dot.running { border-color: #58a6ff; background: #58a6ff; animation: pulse 1.5s infinite; }
+.pipe-dot.done { border-color: #3fb950; background: #3fb950; }
+.pipe-dot.failed { border-color: #f85149; background: #f85149; }
+.pipe-connector { width: 2px; height: 20px; background: var(--border); margin-left: 6px; }
+.pipe-info { flex: 1; }
+.pipe-label { font-size: 13px; font-weight: 600; color: var(--text); }
+.pipe-status { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+.pipe-info-box {
+  padding: 12px 14px; background: rgba(6,182,212,.06); border: 1px solid rgba(6,182,212,.3);
+  border-radius: 8px; font-size: 12px; color: #06b6d4; line-height: 1.5;
+  box-shadow: 0 0 12px rgba(6,182,212,.08);
+}
+.pipe-output-list { padding: 20px; overflow-y: auto; }
+
+/* Pipeline overview page */
+.pov-title {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  font-size: 28px; font-weight: 800; color: var(--text); margin-bottom: 6px; letter-spacing: .5px;
+}
+.pov-subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 36px; letter-spacing: .3px; }
+
+.pov-flow { display: flex; flex-direction: column; align-items: stretch; gap: 0; margin-bottom: 32px; }
+
+.pov-node {
+  display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-radius: 12px;
+  background: var(--card-bg); border: 1px solid var(--border); backdrop-filter: blur(12px);
+  position: relative; transition: all .3s;
+}
+.pov-node:hover { transform: translateX(6px); }
+.pov-s1 { --pov-color: #06b6d4; }
+.pov-s2 { --pov-color: #3b82f6; }
+.pov-s34 { --pov-color: #8b5cf6; }
+.pov-s5 { --pov-color: #f59e0b; }
+.pov-node:hover { border-color: var(--pov-color); box-shadow: 0 0 20px color-mix(in srgb, var(--pov-color) 15%, transparent); }
+
+.pov-node-num {
+  width: 36px; height: 36px; border-radius: 10px; display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0;
+  background: color-mix(in srgb, var(--pov-color) 12%, transparent);
+  color: var(--pov-color); font-size: 13px; font-weight: 800;
+  border: 1px solid color-mix(in srgb, var(--pov-color) 25%, transparent);
+  transition: all .3s;
+}
+.pov-node:hover .pov-node-num {
+  background: var(--pov-color); color: #000;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--pov-color) 30%, transparent);
+}
+
+.pov-node-title {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 2px;
+  transition: color .3s;
+}
+.pov-node:hover .pov-node-title { color: var(--pov-color); }
+.pov-node-desc { font-size: 11.5px; color: var(--text-muted); line-height: 1.4; }
+
+.pov-parallel-badge {
+  position: absolute; top: 8px; right: 12px;
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+  padding: 2px 8px; border-radius: 6px;
+  background: rgba(139,92,246,.1); color: #a78bfa; border: 1px solid rgba(139,92,246,.2);
+}
+
+.pov-connector { display: flex; justify-content: center; height: 24px; }
+.pov-connector-line {
+  width: 2px; height: 100%; position: relative;
+  background: linear-gradient(180deg, var(--border) 0%, rgba(88,166,255,.3) 50%, var(--border) 100%);
+}
+
+.pov-continue-btn {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 14px 36px; border-radius: 12px; border: none;
+  background: linear-gradient(135deg, #06b6d4, #3b82f6);
+  color: #fff; font-size: 15px; font-weight: 700; cursor: pointer;
+  transition: all .3s cubic-bezier(.4,0,.2,1);
+  box-shadow: 0 0 20px rgba(6,182,212,.2), 0 4px 16px rgba(0,0,0,.3);
+  letter-spacing: .5px;
+}
+.pov-continue-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 30px rgba(6,182,212,.3), 0 8px 24px rgba(0,0,0,.4);
+}
+
+/* Pipeline neon theme */
+#pipeline-view .panel {
+  background: linear-gradient(180deg, #161b22 0%, #0f1117 100%);
+  border-right: 1px solid rgba(6,182,212,.15);
+}
+#pipeline-view .drop-zone {
+  border-color: rgba(6,182,212,.3); background: rgba(6,182,212,.03);
+  transition: all .3s;
+}
+#pipeline-view .drop-zone:hover,
+#pipeline-view .drop-zone.drag-over {
+  border-color: #06b6d4; background: rgba(6,182,212,.08);
+  box-shadow: 0 0 20px rgba(6,182,212,.15);
+}
+#pipeline-view input[type="text"]:focus {
+  border-color: #06b6d4; box-shadow: 0 0 0 3px rgba(6,182,212,.15);
+}
+#pipeline-view .run-btn {
+  background: linear-gradient(135deg, #06b6d4, #0891b2);
+  border: none; color: #fff; font-weight: 700; border-radius: 8px; padding: 12px 20px;
+  cursor: pointer; font-size: 14px; width: 100%;
+  transition: all .3s; text-shadow: 0 1px 2px rgba(0,0,0,.3);
+  box-shadow: 0 0 15px rgba(6,182,212,.2);
+}
+#pipeline-view .run-btn:hover {
+  box-shadow: 0 0 30px rgba(6,182,212,.35), 0 4px 16px rgba(0,0,0,.3);
+  transform: translateY(-1px);
+}
+#pipeline-view .run-btn:disabled { opacity: .5; transform: none; box-shadow: none; }
+#pipeline-view .right-tabs .tab-btn.active { border-bottom-color: #06b6d4; color: #06b6d4; }
+#pipeline-view .pipe-dot.running { border-color: #06b6d4; background: #06b6d4; box-shadow: 0 0 10px rgba(6,182,212,.5); }
+
+/* Pipeline live progress stages */
+.pipe-live-stage {
+  padding: 10px 12px; border-radius: 8px; margin-bottom: 8px;
+  background: var(--bg-input); border: 1px solid var(--border);
+  transition: all .3s;
+}
+.pipe-live-stage.active { border-color: #06b6d4; box-shadow: 0 0 12px rgba(6,182,212,.1); }
+.pipe-live-stage.done { border-color: #3fb950; opacity: .8; }
+.pipe-live-stage.failed { border-color: #f85149; }
+.pls-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.pls-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 22px; height: 22px; border-radius: 50%; background: var(--border);
+  color: var(--text); font-size: 10px; font-weight: 800; padding: 0 5px;
+  transition: all .3s;
+}
+.pipe-live-stage.active .pls-num { background: #06b6d4; color: #000; box-shadow: 0 0 8px rgba(6,182,212,.4); }
+.pipe-live-stage.done .pls-num { background: #3fb950; color: #000; }
+.pls-title { font-size: 12px; font-weight: 700; color: var(--text); flex: 1; }
+.pls-badge {
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+  padding: 2px 8px; border-radius: 10px; background: var(--border); color: var(--text-muted);
+}
+.pls-badge.running { background: rgba(6,182,212,.15); color: #06b6d4; animation: pulse 1.5s infinite; }
+.pls-badge.done { background: rgba(63,185,80,.15); color: #3fb950; }
+.pls-badge.failed { background: rgba(248,81,73,.15); color: #f85149; }
+.pls-detail { font-size: 10px; color: var(--text-muted); margin-bottom: 6px; line-height: 1.4; }
+.pls-bar { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 4px; }
+.pls-bar-fill { height: 100%; width: 0%; background: #06b6d4; border-radius: 2px; transition: width .5s; }
+.pipe-live-stage.done .pls-bar-fill { background: #3fb950; width: 100%; }
+.pls-meta { font-size: 10px; color: var(--text-muted); font-family: monospace; }
+.pipe-progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.pipe-cost-banner {
+  margin-top: 12px; padding: 12px; border-radius: 8px; text-align: center;
+  background: rgba(6,182,212,.06); border: 1px solid rgba(6,182,212,.2);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VISUAL IMPROVEMENTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* 1. Constellation canvas background (replaces dot grid) */
+#constellation-bg {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+}
+
+/* 3. Gradient mesh background (animated blobs) */
+.mesh-bg {
+  position: absolute; inset: -20%; z-index: 0; pointer-events: none;
+  filter: blur(80px); opacity: 0.4;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(6,182,212,.3) 0%, transparent 50%),
+    radial-gradient(circle at 70% 60%, rgba(139,92,246,.25) 0%, transparent 50%),
+    radial-gradient(circle at 50% 80%, rgba(59,130,246,.2) 0%, transparent 50%);
+  animation: meshMove 15s ease-in-out infinite alternate;
+}
+@keyframes meshMove {
+  0% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -20px) scale(1.05); }
+  66% { transform: translate(-20px, 30px) scale(0.95); }
+  100% { transform: translate(10px, -10px) scale(1.02); }
+}
+[data-theme="light"] .mesh-bg { opacity: 0.2; }
+
+/* 4. Floating accent orbs */
+.floating-orb {
+  position: absolute; border-radius: 50%; pointer-events: none; z-index: 0;
+  filter: blur(60px);
+}
+.orb-1 {
+  width: 200px; height: 200px; background: rgba(6,182,212,.15);
+  top: 15%; left: 10%;
+  animation: orbFloat1 12s ease-in-out infinite;
+}
+.orb-2 {
+  width: 160px; height: 160px; background: rgba(139,92,246,.12);
+  top: 60%; right: 15%;
+  animation: orbFloat2 10s ease-in-out infinite;
+}
+.orb-3 {
+  width: 120px; height: 120px; background: rgba(236,72,153,.1);
+  bottom: 20%; left: 40%;
+  animation: orbFloat3 14s ease-in-out infinite;
+}
+@keyframes orbFloat1 { 0%, 100% { transform: translate(0,0); } 50% { transform: translate(40px, -30px); } }
+@keyframes orbFloat2 { 0%, 100% { transform: translate(0,0); } 50% { transform: translate(-30px, 20px); } }
+@keyframes orbFloat3 { 0%, 100% { transform: translate(0,0); } 50% { transform: translate(20px, -40px); } }
+[data-theme="light"] .floating-orb { opacity: 0.5; }
+
+/* 5. Logo entrance animation */
+.home-brand .home-logo,
+.home-brand .home-title,
+.home-brand .home-subtitle,
+.home-cards .home-card {
+  opacity: 0;
+  animation: homeEntrance 0.6s ease forwards;
+}
+.home-brand .home-logo { animation-delay: 0.1s; }
+.home-brand .home-title { animation-delay: 0.3s; }
+.home-brand .home-subtitle { animation-delay: 0.5s; }
+.home-cards .home-card:first-child { animation-delay: 0.7s; }
+.home-cards .home-card:last-child { animation-delay: 0.9s; }
+
+@keyframes homeEntrance {
+  from { opacity: 0; transform: translateY(20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* 2. Smooth page transitions */
+.stage-view { opacity: 0; transition: opacity .25s ease; }
+.stage-view.active { opacity: 1; }
+.home-screen, #stage-picker, .main {
+  transition: opacity .3s ease, transform .3s ease;
+}
+.view-hidden {
+  opacity: 0; transform: translateY(10px); pointer-events: none;
+}
+
+/* 3. Glassmorphism on panels */
+.panel {
+  backdrop-filter: blur(12px);
+  background: rgba(22,27,34,.75);
+}
+[data-theme="light"] .panel {
+  background: rgba(255,255,255,.8);
+  backdrop-filter: blur(12px);
+}
+.right { backdrop-filter: blur(8px); }
+
+/* 4. Animated progress bars with shimmer */
+.progress-fill {
+  background-size: 200% 100%;
+  background-image: linear-gradient(90deg, #1f6feb 0%, #58a6ff 25%, #8bb9fe 50%, #58a6ff 75%, #1f6feb 100%);
+  animation: shimmer 2s linear infinite;
+}
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.pls-bar-fill {
+  background-image: linear-gradient(90deg, #06b6d4 0%, #22d3ee 25%, #67e8f9 50%, #22d3ee 75%, #06b6d4 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+/* 5. Stage-specific accent colors */
+#stage1-view .run-btn { background: #06b6d4; box-shadow: 0 0 15px rgba(6,182,212,.2); }
+#stage1-view .run-btn:hover:not(:disabled) { background: #0891b2; }
+#stage1-view .panel { border-right-color: rgba(6,182,212,.2); }
+
+#stage2-view .run-btn { background: #3b82f6; box-shadow: 0 0 15px rgba(59,130,246,.2); }
+#stage2-view .run-btn:hover:not(:disabled) { background: #2563eb; }
+#stage2-view .panel { border-right-color: rgba(59,130,246,.2); }
+
+#stage3-view .run-btn { background: #8b5cf6; box-shadow: 0 0 15px rgba(139,92,246,.2); }
+#stage3-view .run-btn:hover:not(:disabled) { background: #7c3aed; }
+#stage3-view .panel { border-right-color: rgba(139,92,246,.2); }
+
+#stage4-view .run-btn { background: #ec4899; box-shadow: 0 0 15px rgba(236,72,153,.2); }
+#stage4-view .run-btn:hover:not(:disabled) { background: #db2777; }
+#stage4-view .panel { border-right-color: rgba(236,72,153,.2); }
+
+#stage5-view .run-btn { background: #f59e0b; box-shadow: 0 0 15px rgba(245,158,11,.2); }
+#stage5-view .run-btn:hover:not(:disabled) { background: #d97706; }
+#stage5-view .panel { border-right-color: rgba(245,158,11,.2); }
+
+#stage6-view .run-btn { background: #10b981; box-shadow: 0 0 15px rgba(16,185,129,.2); }
+#stage6-view .run-btn:hover:not(:disabled) { background: #059669; }
+#stage6-view .panel { border-right-color: rgba(16,185,129,.2); }
+
+/* Stage-specific light mode overrides */
+[data-theme="light"] #stage1-view .run-btn { background: #0891b2; }
+[data-theme="light"] #stage2-view .run-btn { background: #2563eb; }
+[data-theme="light"] #stage3-view .run-btn { background: #7c3aed; }
+[data-theme="light"] #stage4-view .run-btn { background: #db2777; }
+[data-theme="light"] #stage5-view .run-btn { background: #d97706; }
+[data-theme="light"] #stage6-view .run-btn { background: #059669; }
+
+/* 6. Micro-interactions */
+.run-btn:active:not(:disabled) { transform: scale(0.97); }
+
+@keyframes dropPulse { 0%, 100% { border-color: var(--accent); } 50% { border-color: transparent; } }
+.drop-zone.drag-over { animation: dropPulse 1s ease infinite; }
+
+@keyframes tagSlideIn { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: translateX(0); } }
+.file-tag { animation: tagSlideIn .25s ease; }
+
+.stage-tab { transition: color .25s, border-color .25s, text-shadow .25s, transform .15s; }
+.stage-tab:hover { transform: translateY(-1px); }
+
+.home-card { transition: all .3s cubic-bezier(.4,0,.2,1), transform .4s cubic-bezier(.4,0,.2,1); }
+
+/* 7. Better typography with Inter */
+.home-title { font-family: 'Inter', system-ui, sans-serif; }
+
+/* =============================================
+   PIPELINE PAGE — VISUAL OVERHAUL
+   ============================================= */
+
+/* 1. Show Name input — bigger and styled */
+#pipeline-view .panel > div:first-child input {
+  font-size: 13px; padding: 8px 10px; border-radius: 6px;
+  font-weight: 500; letter-spacing: .2px;
+  border: 1px solid rgba(6,182,212,.2);
+  transition: all .3s;
+}
+#pipeline-view .panel > div:first-child input:focus {
+  border-color: #06b6d4; box-shadow: 0 0 16px rgba(6,182,212,.15);
+}
+
+/* 2. Drop zone — larger with animated dashed border */
+#pipeline-view .drop-zone {
+  padding: 16px 14px; border-radius: 8px;
+  border: 2px dashed rgba(6,182,212,.25);
+  background: rgba(6,182,212,.02);
+  transition: all .3s;
+}
+#pipeline-view .drop-zone:hover {
+  border-color: #06b6d4; background: rgba(6,182,212,.06);
+  box-shadow: 0 0 24px rgba(6,182,212,.1);
+}
+#pipeline-view .drop-zone .dz-icon { font-size: 20px; margin-bottom: 3px; }
+#pipeline-view .drop-zone .dz-hint { font-size: 11.5px; line-height: 1.5; }
+
+/* 3. Workers slider — custom styled with cyan track */
+#pipeline-view input[type="range"] {
+  -webkit-appearance: none; appearance: none;
+  height: 6px; border-radius: 3px;
+  background: linear-gradient(90deg, #06b6d4 0%, rgba(6,182,212,.2) 100%);
+  outline: none;
+}
+#pipeline-view input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #06b6d4; cursor: pointer;
+  box-shadow: 0 0 8px rgba(6,182,212,.4);
+  transition: box-shadow .2s;
+}
+#pipeline-view input[type="range"]::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 14px rgba(6,182,212,.6);
+}
+
+/* 4. Workers value display — make it glow */
+#pipeline-view .workers-row span:first-of-type {
+  font-size: 13px !important; font-weight: 700 !important; color: #06b6d4 !important;
+}
+
+/* 5. Info box — glassmorphism with icon */
+#pipeline-view .pipe-info-box {
+  padding: 10px 12px; border-radius: 6px;
+  background: rgba(6,182,212,.04); backdrop-filter: blur(8px);
+  border: 1px solid rgba(6,182,212,.15);
+  font-size: 11.5px; color: #06b6d4;
+}
+
+/* 6. Run button — bigger with pulse animation when idle */
+#pipeline-view .run-btn {
+  padding: 10px 20px; font-size: 13px; font-weight: 700;
+  border-radius: 8px; letter-spacing: .3px;
+  background: linear-gradient(135deg, #06b6d4, #0891b2);
+  box-shadow: 0 0 20px rgba(6,182,212,.2);
+  animation: btnPulse 3s ease-in-out infinite;
+}
+#pipeline-view .run-btn:hover {
+  box-shadow: 0 0 30px rgba(6,182,212,.35);
+  animation: none;
+}
+#pipeline-view .run-btn:disabled { animation: none; }
+@keyframes btnPulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(6,182,212,.2); }
+  50% { box-shadow: 0 0 30px rgba(6,182,212,.35); }
+}
+
+/* 7. FL labels — neon-tinted */
+#pipeline-view .fl {
+  color: #06b6d4; font-size: 10px; letter-spacing: .12em;
+  text-shadow: 0 0 6px rgba(6,182,212,.2);
+}
+
+/* 8. Left panel overall — subtle gradient background + glow border */
+#pipeline-view .panel {
+  background: linear-gradient(180deg, rgba(22,27,34,.9) 0%, rgba(13,17,23,.95) 100%);
+  border-right: 1px solid rgba(6,182,212,.1);
+  backdrop-filter: blur(12px);
+  padding: 20px 18px;
+  gap: 16px;
+}
+
+/* 9. Tab buttons — pill style matching pipeline cyan */
+#pipeline-view .right-tabs {
+  padding: 8px 12px; gap: 6px;
+  background: rgba(22,27,34,.8); border-bottom: 1px solid rgba(6,182,212,.1);
+}
+#pipeline-view .tab-btn {
+  padding: 6px 14px; border-radius: 6px; font-weight: 600;
+  transition: all .25s;
+}
+#pipeline-view .tab-btn:hover {
+  background: rgba(6,182,212,.06); color: #06b6d4;
+}
+#pipeline-view .tab-btn.active {
+  background: rgba(6,182,212,.1); color: #06b6d4;
+  border-bottom: none; box-shadow: 0 0 8px rgba(6,182,212,.1);
+}
+
+/* 10. Log pane — styled with subtle grid background */
+#pipeline-view .log-el {
+  background: linear-gradient(180deg, #0d1117 0%, #0a0e14 100%);
+  border-left: 2px solid rgba(6,182,212,.1);
+  padding: 16px 20px;
+}
+
+/* 11. Right panel overall — subtle background */
+#pipeline-view .right {
+  background: linear-gradient(180deg, #0d1117 0%, #0a0e14 100%);
+}
+
+/* Light mode overrides for pipeline visual overhaul */
+[data-theme="light"] #pipeline-view .panel {
+  background: linear-gradient(180deg, rgba(255,255,255,.95) 0%, rgba(248,249,251,.95) 100%);
+  border-right-color: rgba(6,182,212,.1);
+}
+[data-theme="light"] #pipeline-view .right {
+  background: linear-gradient(180deg, #f8f9fb 0%, #f0f2f5 100%);
+}
+[data-theme="light"] #pipeline-view .right-tabs { background: rgba(255,255,255,.9); }
+[data-theme="light"] #pipeline-view .log-el {
+  background: linear-gradient(180deg, #f8f9fb 0%, #f0f2f5 100%);
+  border-left-color: rgba(6,182,212,.08);
+}
+[data-theme="light"] #pipeline-view .fl { color: #0891b2; text-shadow: none; }
+[data-theme="light"] #pipeline-view .workers-row span:first-of-type { color: #0891b2 !important; text-shadow: none !important; }
+
+/* ═══════════════════════════ Modern Dashboard Pipeline ═══════════════════════ */
+#pipeline-view.active {
+  display: grid !important;
+  grid-template-columns: 340px 1fr !important;
+}
+
+/* Setup section */
+.dash-header { margin-bottom: 28px; }
+.dash-title {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  font-size: 26px; font-weight: 800; color: var(--text); margin-bottom: 6px;
+}
+.dash-subtitle { font-size: 13px; color: var(--text-muted); }
+
+.dash-cards {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px;
+}
+.dash-card {
+  padding: 18px; border-radius: 12px;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  transition: border-color .2s, box-shadow .2s;
+}
+.dash-card:hover { border-color: rgba(88,166,255,.3); box-shadow: 0 2px 12px rgba(0,0,0,.15); }
+.dash-card-wide { grid-column: 1 / -1; }
+.dash-card-label {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  font-size: 11px; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px;
+}
+
+.dash-input {
+  width: 100%; padding: 10px 12px; border-radius: 8px;
+  background: var(--bg-input); border: 1px solid var(--border);
+  color: var(--text); font-size: 14px; font-family: inherit; outline: none;
+  transition: border-color .2s, box-shadow .2s;
+  box-sizing: border-box;
+}
+.dash-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+
+/* Drop zone */
+.dash-drop {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 24px; border-radius: 10px; border: 2px dashed var(--border);
+  cursor: pointer; color: var(--text-muted); transition: all .25s;
+  background: var(--bg-input);
+}
+.dash-drop:hover, .dash-drop.drag-over {
+  border-color: var(--accent); color: var(--accent); background: rgba(88,166,255,.03);
+}
+.dash-drop-text { font-size: 13px; }
+.dash-drop-text b { color: var(--accent); }
+.dash-drop-hint { font-size: 11px; color: var(--text-muted); }
+
+/* File grid */
+.dash-file-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.dash-file-grid .file-tag {
+  display: flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: 6px;
+  background: rgba(88,166,255,.06); border: 1px solid rgba(88,166,255,.15);
+  color: var(--accent); font-size: 11px; font-weight: 500;
+}
+
+/* Workers */
+.dash-workers { display: flex; align-items: center; gap: 12px; }
+.dash-slider {
+  flex: 1; -webkit-appearance: none; appearance: none;
+  height: 6px; border-radius: 3px; background: var(--border); outline: none;
+}
+.dash-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--accent); cursor: pointer;
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.dash-workers-val {
+  font-size: 20px; font-weight: 800; color: var(--accent); min-width: 24px; text-align: center;
+}
+
+/* Launch area */
+.dash-launch { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.dash-run-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 28px; border-radius: 10px; border: none;
+  background: var(--accent); color: #fff;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  font-size: 14px; font-weight: 700; cursor: pointer;
+  transition: all .25s; box-shadow: 0 2px 8px rgba(88,166,255,.2);
+}
+.dash-run-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(88,166,255,.3); }
+.dash-run-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+.dash-run-hint { font-size: 12px; color: var(--text-muted); }
+
+/* Live dashboard */
+.dash-live { animation: dashFadeIn .4s ease; }
+@keyframes dashFadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Stats row */
+.dash-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px;
+}
+.dash-stat {
+  padding: 16px; border-radius: 10px;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  text-align: center;
+}
+.dash-stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+.dash-stat-val { font-size: 20px; font-weight: 800; color: var(--text); font-family: 'JetBrains Mono', monospace; }
+.dash-stat-cost { color: #3fb950; }
+
+/* Timeline */
+.dash-timeline {
+  padding: 20px; border-radius: 12px; margin-bottom: 20px;
+  background: var(--bg-surface); border: 1px solid var(--border);
+}
+.dash-tl-node { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+.dash-tl-dot {
+  width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+  background: var(--border); border: 2px solid var(--border);
+  transition: all .3s;
+}
+.dash-tl-node.active .dash-tl-dot { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 8px var(--accent-glow); }
+.dash-tl-node.done .dash-tl-dot { background: #3fb950; border-color: #3fb950; }
+.dash-tl-node.failed .dash-tl-dot { background: #f85149; border-color: #f85149; }
+.dash-tl-info { flex: 1; display: flex; justify-content: space-between; align-items: center; }
+.dash-tl-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.dash-tl-node.active .dash-tl-title { color: var(--accent); }
+.dash-tl-status { font-size: 11px; color: var(--text-muted); }
+.dash-tl-node.active .dash-tl-status { color: var(--accent); }
+.dash-tl-node.done .dash-tl-status { color: #3fb950; }
+.dash-tl-line { width: 2px; height: 12px; background: var(--border); margin-left: 5px; }
+
+/* Log */
+.dash-log-section {
+  border-radius: 12px; overflow: hidden; margin-bottom: 20px;
+  background: var(--bg-surface); border: 1px solid var(--border);
+}
+.dash-log-header {
+  padding: 10px 16px; font-size: 11px; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .08em;
+  border-bottom: 1px solid var(--border); background: var(--bg-input);
+}
+.dash-log {
+  height: 240px; overflow-y: auto; padding: 12px 16px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11.5px;
+  line-height: 1.7; color: var(--text-dim); white-space: pre-wrap; word-break: break-all;
+}
+
+/* Output */
+.dash-output { padding: 8px 0; }
+
+/* Dashboard right panel for pipeline */
+.dash-right {
+  padding: 16px; overflow-y: auto; display: flex; flex-direction: column;
+  background: var(--right-bg);
+}
+.dash-right .dash-log-section { flex: 1; display: flex; flex-direction: column; }
+.dash-right .dash-log { flex: 1; min-height: 0; }
+.dash-right .dash-stats { margin-bottom: 16px; }
+.dash-right .dash-stats .dash-stat { padding: 12px; }
+.dash-right .dash-stats .dash-stat-val { font-size: 16px; }
+
+/* Pipeline stage cards in left panel */
+.psc {
+  padding: 10px 12px; border-radius: 8px; margin-bottom: 6px;
+  background: var(--bg-input); border: 1px solid var(--border);
+  transition: all .3s;
+}
+.psc.active { border-color: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
+.psc.done { border-color: #3fb950; }
+.psc.failed { border-color: #f85149; }
+.psc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.psc-num {
+  width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 800; background: var(--border); color: var(--text-muted);
+  flex-shrink: 0; transition: all .3s;
+}
+.psc.active .psc-num { background: var(--accent); color: #000; box-shadow: 0 0 6px var(--accent-glow); }
+.psc.done .psc-num { background: #3fb950; color: #000; }
+.psc-title { font-size: 11px; font-weight: 700; color: var(--text); flex: 1; }
+.psc.active .psc-title { color: var(--accent); }
+.psc-badge {
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+  padding: 2px 6px; border-radius: 4px; background: var(--border); color: var(--text-muted);
+}
+.psc.active .psc-badge { background: rgba(88,166,255,.12); color: var(--accent); }
+.psc.done .psc-badge { background: rgba(63,185,80,.12); color: #3fb950; }
+.psc.failed .psc-badge { background: rgba(248,81,73,.12); color: #f85149; }
+.psc-desc { font-size: 10px; color: var(--text-muted); line-height: 1.3; margin-bottom: 6px; }
+.psc-bar { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.psc-bar-fill {
+  height: 100%; width: 0%; border-radius: 2px;
+  background: var(--accent); transition: width .5s;
+  background-size: 200% 100%; animation: shimmer 2s linear infinite;
+}
+.psc.done .psc-bar-fill { background: #3fb950; width: 100%; animation: none; }
+.dash-right .dash-timeline { margin-bottom: 14px; padding: 14px; }
+
+/* Stage stats bar — card style matching pipeline */
+.stage-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+  padding: 12px 14px; flex-shrink: 0;
+}
+.ss-item {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 10px 8px; border-radius: 8px;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  text-align: center;
+}
+.ss-label {
+  font-size: 9px; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .08em;
+}
+.ss-val {
+  font-size: 15px; font-weight: 800; color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+}
+.ss-cost { color: #3fb950; }
+
+/* ═══ Stage pages visual upgrade to match pipeline dashboard ═══ */
+
+/* Right panel background */
+.stage-view .right {
+  background: linear-gradient(180deg, var(--right-bg) 0%, var(--bg-body) 100%);
+}
+
+/* Stats bar at top of right panel — upgrade */
+.stage-stats {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px;
+}
+.ss-val {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Left panel — gradient background with glass */
+.stage-view .panel {
+  background: linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-body) 100%);
+  backdrop-filter: blur(8px);
+}
+
+/* Input fields — modern rounded style */
+.stage-view input[type="text"],
+.stage-view input[type="number"],
+.stage-view textarea,
+.stage-view select {
+  border-radius: 8px;
+  transition: border-color .25s, box-shadow .25s;
+}
+.stage-view input[type="text"]:focus,
+.stage-view input[type="number"]:focus,
+.stage-view textarea:focus,
+.stage-view select:focus {
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+/* Drop zones — modern with icon animation */
+.stage-view .drop-zone {
+  border-radius: 10px;
+  border: 2px dashed var(--border);
+  transition: all .3s;
+  padding: 20px 16px;
+}
+.stage-view .drop-zone:hover,
+.stage-view .drop-zone.drag-over {
+  border-color: var(--accent);
+  background: rgba(88,166,255,.03);
+  box-shadow: 0 0 16px rgba(88,166,255,.06);
+}
+
+/* Run buttons — match pipeline style */
+.stage-view .run-btn {
+  border-radius: 10px;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  font-weight: 700;
+  transition: all .25s;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.stage-view .run-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0,0,0,.2);
+}
+.stage-view .run-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* FL labels — cleaner */
+.stage-view .fl {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  letter-spacing: .08em;
+}
+
+/* Right panel tabs — pill style */
+.stage-view .right-tabs {
+  padding: 8px 12px;
+  gap: 4px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+}
+.stage-view .tab-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 11.5px;
+  border-bottom: none;
+  transition: all .2s;
+}
+.stage-view .tab-btn:hover {
+  background: rgba(88,166,255,.06);
+}
+.stage-view .tab-btn.active {
+  background: rgba(88,166,255,.08);
+  color: var(--accent);
+  border-bottom: none;
+}
+
+/* Log pane — cleaner */
+.stage-view .log-el {
+  background: var(--bg-body);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  line-height: 1.8;
+}
+
+/* File rows — card style */
+.stage-view .file-row {
+  border-radius: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  transition: border-color .2s;
+}
+.stage-view .file-row:hover {
+  border-color: var(--accent);
+}
+
+/* Download buttons — modern */
+.stage-view .dl-btn {
+  border-radius: 6px;
+  font-weight: 600;
+  transition: all .2s;
+}
+.stage-view .dl-btn:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* Progress box — modern */
+.stage-view .progress-box {
+  border-radius: 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+}
+.stage-view .progress-fill {
+  background: linear-gradient(90deg, var(--accent), rgba(88,166,255,.7));
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+/* Toggle row — rounded */
+.stage-view .toggle-row {
+  border-radius: 8px;
+  overflow: hidden;
+  border-color: var(--border);
+}
+.stage-view .toggle-row button {
+  transition: all .2s;
+}
+
+/* Workers row — match pipeline style */
+.stage-view .workers-row input[type="number"] {
+  border-radius: 6px;
+  text-align: center;
+  font-weight: 700;
+}
+
+/* File tags — modern */
+.stage-view .file-tag {
+  border-radius: 6px;
+  font-size: 11px;
+  background: rgba(88,166,255,.06);
+  border: 1px solid rgba(88,166,255,.12);
+  color: var(--accent);
+  transition: all .2s;
+}
+
+/* Preview cards — rounded */
+.stage-view .preview-card {
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color .2s, box-shadow .2s;
+}
+.stage-view .preview-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 2px 12px rgba(0,0,0,.15);
+}
+
+/* Shot cards — rounded */
+.stage-view .shot-card {
+  border-radius: 8px;
+  transition: all .2s;
+}
+.stage-view .shot-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 2px 12px rgba(0,0,0,.15);
+}
+
+/* Save DB button — modern */
+.stage-view .save-db-btn {
+  border-radius: 8px;
+  transition: all .2s;
+}
+
+/* Empty messages */
+.stage-view .empty-msg {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Per-stage neon accent on left panel border */
+#stage1-view .panel { border-right: 1px solid rgba(6,182,212,.15); }
+#stage2-view .panel { border-right: 1px solid rgba(59,130,246,.15); }
+#stage3-view .panel { border-right: 1px solid rgba(139,92,246,.15); }
+#stage4-view .panel { border-right: 1px solid rgba(236,72,153,.15); }
+#stage5-view .panel { border-right: 1px solid rgba(245,158,11,.15); }
+#stage6-view .panel { border-right: 1px solid rgba(16,185,129,.15); }
+
+/* Per-stage accent on stats bar active values */
+#stage1-view .ss-cost { color: #06b6d4; }
+#stage2-view .ss-cost { color: #3b82f6; }
+#stage3-view .ss-cost { color: #8b5cf6; }
+#stage4-view .ss-cost { color: #ec4899; }
+#stage5-view .ss-cost { color: #f59e0b; }
+#stage6-view .ss-cost { color: #10b981; }
+
+/* Per-stage focus accent on inputs */
+#stage1-view input:focus, #stage1-view textarea:focus, #stage1-view select:focus { border-color: #06b6d4; box-shadow: 0 0 0 3px rgba(6,182,212,.12); }
+#stage2-view input:focus, #stage2-view textarea:focus, #stage2-view select:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.12); }
+#stage3-view input:focus, #stage3-view textarea:focus, #stage3-view select:focus { border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139,92,246,.12); }
+#stage4-view input:focus, #stage4-view textarea:focus, #stage4-view select:focus { border-color: #ec4899; box-shadow: 0 0 0 3px rgba(236,72,153,.12); }
+#stage5-view input:focus, #stage5-view textarea:focus, #stage5-view select:focus { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.12); }
+#stage6-view input:focus, #stage6-view textarea:focus, #stage6-view select:focus { border-color: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,.12); }
+
+/* Per-stage drop zone hover accent */
+#stage1-view .drop-zone:hover { border-color: #06b6d4; box-shadow: 0 0 12px rgba(6,182,212,.06); }
+#stage2-view .drop-zone:hover { border-color: #3b82f6; box-shadow: 0 0 12px rgba(59,130,246,.06); }
+#stage3-view .drop-zone:hover { border-color: #8b5cf6; box-shadow: 0 0 12px rgba(139,92,246,.06); }
+#stage4-view .drop-zone:hover { border-color: #ec4899; box-shadow: 0 0 12px rgba(236,72,153,.06); }
+#stage5-view .drop-zone:hover { border-color: #f59e0b; box-shadow: 0 0 12px rgba(245,158,11,.06); }
+#stage6-view .drop-zone:hover { border-color: #10b981; box-shadow: 0 0 12px rgba(16,185,129,.06); }
+
+/* Per-stage active tab color */
+#stage1-view .tab-btn.active { color: #06b6d4; background: rgba(6,182,212,.08); }
+#stage2-view .tab-btn.active { color: #3b82f6; background: rgba(59,130,246,.08); }
+#stage3-view .tab-btn.active { color: #8b5cf6; background: rgba(139,92,246,.08); }
+#stage4-view .tab-btn.active { color: #ec4899; background: rgba(236,72,153,.08); }
+#stage5-view .tab-btn.active { color: #f59e0b; background: rgba(245,158,11,.08); }
+#stage6-view .tab-btn.active { color: #10b981; background: rgba(16,185,129,.08); }
+
 </style>
 </head>
 <body>
 
 <header>
-  <img src="/static/logo.png" alt="PocketFM" class="logo">
-  <h1>FRAMES</h1>
-  <span>Argus &middot; <span id="hdr-model">loading...</span></span>
+  <div class="hdr-brand">
+    <div class="logo-glow">
+      <img src="/static/logo.png" alt="PocketFM" class="logo">
+    </div>
+    <h1>FRAMES</h1>
+  </div>
+  <button class="hdr-home-btn" id="hdr-back" style="display:none" onclick="showHome()">
+    <span class="hdr-home-icon">&#8962;</span> Home
+  </button>
+  <span style="margin-left:auto;display:flex;align-items:center;gap:12px;">
+    <span style="font-size:12px;color:var(--text-muted)">Argus &middot; <span id="hdr-model">loading...</span></span>
+    <span class="theme-icon" id="theme-icon">&#9790;</span>
+    <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode"></button>
+  </span>
 </header>
 
-<nav class="stage-nav">
+<!-- ══════════════════════════ Welcome Home Screen ══ -->
+<div id="home-screen" class="home-screen">
+  <canvas id="constellation-bg"></canvas>
+  <div class="mesh-bg"></div>
+  <div class="floating-orb orb-1"></div>
+  <div class="floating-orb orb-2"></div>
+  <div class="floating-orb orb-3"></div>
+  <div class="home-content">
+    <div class="home-brand">
+      <img src="/static/logo.png" alt="FRAMES" class="home-logo">
+      <h1 class="home-title">FRAMES</h1>
+      <p class="home-subtitle">Shot Generation Pipeline</p>
+    </div>
+    <div class="home-cards">
+      <div class="home-card" onclick="enterPipeline()">
+        <div class="home-card-icon-wrap home-card-icon-pipe">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </div>
+        <h2>Pipeline</h2>
+        <p class="home-card-desc">Run the full automated pipeline end-to-end</p>
+        <div class="hcf-flow">
+          <span class="hcf-node">Ref</span>
+          <span class="hcf-line"></span>
+          <span class="hcf-node">Breakdown</span>
+          <span class="hcf-line"></span>
+          <span class="hcf-node">Audit</span>
+          <span class="hcf-line"></span>
+          <span class="hcf-node">Images</span>
+        </div>
+      </div>
+      <div class="home-card" onclick="enterStages()">
+        <div class="home-card-icon-wrap home-card-icon-stages">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        </div>
+        <h2>Individual Stages</h2>
+        <p class="home-card-desc">Run any stage independently with full control</p>
+        <div class="home-card-stages">
+          <div class="hcs-line"><strong>6 Stages</strong></div>
+          <div class="hcs-line"><strong>Upload &amp; Configure Each</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════ Pipeline Overview ══ -->
+<div id="pipeline-overview" class="home-screen" style="display:none">
+  <div class="home-content" style="max-width:600px">
+    <h2 class="pov-title">Pipeline Overview</h2>
+    <p class="pov-subtitle">Automated end-to-end shot generation</p>
+
+    <div class="pov-flow">
+      <div class="pov-node pov-s1">
+        <div class="pov-node-num">1</div>
+        <div class="pov-node-info">
+          <div class="pov-node-title">Reference Files</div>
+          <div class="pov-node-desc">Tone bible, character canvas, location reference, episode details</div>
+        </div>
+      </div>
+      <div class="pov-connector"><div class="pov-connector-line"></div></div>
+      <div class="pov-node pov-s2">
+        <div class="pov-node-num">2</div>
+        <div class="pov-node-info">
+          <div class="pov-node-title">Shot Breakdown</div>
+          <div class="pov-node-desc">Script to shot-by-shot Excel with beat coverage checklist</div>
+        </div>
+      </div>
+      <div class="pov-connector"><div class="pov-connector-line"></div></div>
+      <div class="pov-node pov-s34">
+        <div class="pov-node-num">3+4</div>
+        <div class="pov-node-info">
+          <div class="pov-node-title">Audit + Reference Images</div>
+          <div class="pov-node-desc">Script audit and character/location image generation in parallel</div>
+        </div>
+        <div class="pov-parallel-badge">Parallel</div>
+      </div>
+      <div class="pov-connector"><div class="pov-connector-line"></div></div>
+      <div class="pov-node pov-s5">
+        <div class="pov-node-num">5</div>
+        <div class="pov-node-info">
+          <div class="pov-node-title">Shot Images</div>
+          <div class="pov-node-desc">Generate per-shot images anchored to character and location references</div>
+        </div>
+      </div>
+    </div>
+
+    <button class="pov-continue-btn" onclick="continueToPipeline()">Continue to Pipeline &rarr;</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════ Stage Picker ══ -->
+<div id="stage-picker" class="home-screen" style="display:none">
+  <div class="home-content">
+    <div class="stage-grid">
+      <div class="stage-card" onclick="openStage('stage1-view')" data-hover="Upload episode scripts to generate show tone bible, character canvas, and location reference files using Claude.">
+        <div class="stage-card-num">1</div>
+        <h3>Reference Files</h3>
+        <p>Generate tone bible, character canvas, location reference from scripts</p>
+      </div>
+      <div class="stage-card" onclick="openStage('stage2-view')" data-hover="Break scripts into 100-200 shot rows with verbatim lines, camera angles, and Gemini-ready image prompts.">
+        <div class="stage-card-num">2</div>
+        <h3>Shot Breakdown</h3>
+        <p>Break scripts into shot-by-shot Excel with image-gen-ready descriptions</p>
+      </div>
+      <div class="stage-card" onclick="openStage('stage3-view')" data-hover="Verify every script sentence appears verbatim in the breakdown. Auto-fix paraphrased, truncated, or missing lines.">
+        <div class="stage-card-num">3</div>
+        <h3>Script Audit</h3>
+        <p>Audit breakdowns against source scripts and auto-fix coverage gaps</p>
+      </div>
+      <div class="stage-card" onclick="openStage('stage4-view')" data-hover="Generate full-body character portraits and cinematic location shots using Gemini Imagen 4 for visual consistency.">
+        <div class="stage-card-num">4</div>
+        <h3>Reference Images</h3>
+        <p>Generate character portraits and location establishing shots</p>
+      </div>
+      <div class="stage-card" onclick="openStage('stage5-view')" data-hover="Generate one image per shot anchored to character and location references. Output to Excel and Google Sheets.">
+        <div class="stage-card-num">5</div>
+        <h3>Image Generation</h3>
+        <p>Generate per-shot images anchored to character and location references</p>
+      </div>
+      <div class="stage-card" onclick="openStage('stage6-view')" data-hover="Combine shot images with audio narration into a 1080x1080 MP4 video with Whisper-aligned subtitles.">
+        <div class="stage-card-num">6</div>
+        <h3>Video Generation</h3>
+        <p>Composite images + audio into final MP4 with optional subtitles</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<nav class="stage-nav" id="stage-nav" style="display:none">
   <button class="stage-tab active" data-stage="stage1-view">Stage 1 &mdash; Reference Files</button>
   <button class="stage-tab"        data-stage="stage2-view">Stage 2 &mdash; Shot Breakdown</button>
   <button class="stage-tab"        data-stage="stage3-view">Stage 3 &mdash; Script Audit</button>
   <button class="stage-tab"        data-stage="stage4-view">Stage 4 &mdash; Reference Images</button>
   <button class="stage-tab"        data-stage="stage5-view">Stage 5 &mdash; Image Generation</button>
   <button class="stage-tab"        data-stage="stage6-view">Stage 6 &mdash; Video Generation</button>
+  <button class="stage-tab"        data-stage="pipeline-view">Pipeline</button>
 </nav>
 
-<div class="main">
+<div class="main" style="display:none">
 
   <!-- ══════════════════════════ Stage 1 ══ -->
-  <div class="stage-view active" id="stage1-view">
+  <div class="stage-view" id="stage1-view">
 
     <div class="panel">
       <div>
@@ -377,6 +1804,12 @@ select { cursor: pointer; }
     </div>
 
     <div class="right">
+      <div class="stage-stats" id="s1-stats">
+        <div class="ss-item"><span class="ss-label">Elapsed</span><span class="ss-val" id="s1-elapsed">--</span></div>
+        <div class="ss-item"><span class="ss-label">Progress</span><span class="ss-val" id="s1-progress">--</span></div>
+        <div class="ss-item"><span class="ss-label">Tokens</span><span class="ss-val" id="s1-tokens">--</span></div>
+        <div class="ss-item"><span class="ss-label">Cost</span><span class="ss-val ss-cost" id="s1-cost">--</span></div>
+      </div>
       <div class="right-tabs">
         <button class="tab-btn active" data-tab="s1-log-pane">Live Log</button>
         <button class="tab-btn"        data-tab="s1-files-pane">Output Files</button>
@@ -482,6 +1915,12 @@ select { cursor: pointer; }
     </div>
 
     <div class="right">
+      <div class="stage-stats" id="s2-stats">
+        <div class="ss-item"><span class="ss-label">Elapsed</span><span class="ss-val" id="s2-elapsed">--</span></div>
+        <div class="ss-item"><span class="ss-label">Progress</span><span class="ss-val" id="s2-progress">--</span></div>
+        <div class="ss-item"><span class="ss-label">Tokens</span><span class="ss-val" id="s2-tokens">--</span></div>
+        <div class="ss-item"><span class="ss-label">Cost</span><span class="ss-val ss-cost" id="s2-cost">--</span></div>
+      </div>
       <div class="right-tabs">
         <button class="tab-btn active" data-tab="s2-log-pane">Live Log</button>
         <button class="tab-btn"        data-tab="s2-files-pane">Output Files</button>
@@ -529,6 +1968,12 @@ select { cursor: pointer; }
       <div class="status-msg" id="s3-status"></div>
     </div>
     <div class="right">
+      <div class="stage-stats" id="s3-stats">
+        <div class="ss-item"><span class="ss-label">Elapsed</span><span class="ss-val" id="s3-elapsed">--</span></div>
+        <div class="ss-item"><span class="ss-label">Progress</span><span class="ss-val" id="s3-progress">--</span></div>
+        <div class="ss-item"><span class="ss-label">Tokens</span><span class="ss-val" id="s3-tokens">--</span></div>
+        <div class="ss-item"><span class="ss-label">Cost</span><span class="ss-val ss-cost" id="s3-cost">--</span></div>
+      </div>
       <div class="right-tabs">
         <button class="tab-btn active" data-tab="s3-log-pane">Live Log</button>
         <button class="tab-btn"        data-tab="s3-flags-pane">Flags</button>
@@ -580,6 +2025,12 @@ select { cursor: pointer; }
       <div class="status-msg" id="s4-status"></div>
     </div>
     <div class="right">
+      <div class="stage-stats" id="s4-stats">
+        <div class="ss-item"><span class="ss-label">Elapsed</span><span class="ss-val" id="s4-elapsed">--</span></div>
+        <div class="ss-item"><span class="ss-label">Progress</span><span class="ss-val" id="s4-progress">--</span></div>
+        <div class="ss-item"><span class="ss-label">Tokens</span><span class="ss-val" id="s4-tokens">--</span></div>
+        <div class="ss-item"><span class="ss-label">Cost</span><span class="ss-val ss-cost" id="s4-cost">--</span></div>
+      </div>
       <div class="right-tabs">
         <button class="tab-btn active" data-tab="s4-log-pane">Live Log</button>
         <button class="tab-btn"        data-tab="s4-preview-pane">Image Preview</button>
@@ -659,6 +2110,12 @@ select { cursor: pointer; }
       <div class="status-msg" id="s5-status"></div>
     </div>
     <div class="right">
+      <div class="stage-stats" id="s5-stats">
+        <div class="ss-item"><span class="ss-label">Elapsed</span><span class="ss-val" id="s5-elapsed">--</span></div>
+        <div class="ss-item"><span class="ss-label">Progress</span><span class="ss-val" id="s5-progress">--</span></div>
+        <div class="ss-item"><span class="ss-label">Tokens</span><span class="ss-val" id="s5-tokens">--</span></div>
+        <div class="ss-item"><span class="ss-label">Cost</span><span class="ss-val ss-cost" id="s5-cost">--</span></div>
+      </div>
       <div class="right-tabs">
         <button class="tab-btn active" data-tab="s5-log-pane">Live Log</button>
         <button class="tab-btn"        data-tab="s5-preview-pane">Image Preview</button>
@@ -745,6 +2202,12 @@ select { cursor: pointer; }
       <div class="status-msg" id="s6-status"></div>
     </div>
     <div class="right">
+      <div class="stage-stats" id="s6-stats">
+        <div class="ss-item"><span class="ss-label">Elapsed</span><span class="ss-val" id="s6-elapsed">--</span></div>
+        <div class="ss-item"><span class="ss-label">Progress</span><span class="ss-val" id="s6-progress">--</span></div>
+        <div class="ss-item"><span class="ss-label">Tokens</span><span class="ss-val" id="s6-tokens">--</span></div>
+        <div class="ss-item"><span class="ss-label">Cost</span><span class="ss-val ss-cost" id="s6-cost">--</span></div>
+      </div>
       <div class="right-tabs">
         <button class="tab-btn active" data-tab="s6-log-pane">Live Log</button>
         <button class="tab-btn"        data-tab="s6-files-pane">Output Files</button>
@@ -758,6 +2221,128 @@ select { cursor: pointer; }
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- ══════════════════════════ Pipeline ══ -->
+  <div class="stage-view" id="pipeline-view">
+
+    <!-- Left panel: inputs -->
+    <div class="panel">
+      <div>
+        <span class="fl">Show Name</span>
+        <input type="text" id="pipe-show-name" class="dash-input" placeholder="e.g. Dark Desires" style="font-size:13px;padding:8px 10px;">
+      </div>
+
+      <div>
+        <span class="fl">Episode Scripts</span>
+        <div class="dash-drop" id="pipe-drop-zone" style="padding:16px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span class="dash-drop-text" style="font-size:12px;">Drop scripts or <b>browse</b></span>
+          <span class="dash-drop-hint">.md .txt .docx .fountain</span>
+        </div>
+        <div id="pipe-file-list" class="dash-file-grid"></div>
+      </div>
+
+      <div>
+        <span class="fl">Parallel Workers</span>
+        <div class="dash-workers">
+          <input type="range" id="pipe-workers" min="1" max="10" value="3" class="dash-slider"
+                 oninput="document.getElementById('pipe-workers-val').textContent=this.value">
+          <span id="pipe-workers-val" class="dash-workers-val" style="font-size:14px;">3</span>
+        </div>
+      </div>
+
+      <div style="padding:8px 10px;border-radius:6px;background:rgba(88,166,255,.04);border:1px solid rgba(88,166,255,.12);font-size:11px;color:var(--accent);">
+        <strong>Runs:</strong> Stage 1 &rarr; 2 &rarr; 3+4 &rarr; 5
+      </div>
+
+      <button class="dash-run-btn" id="pipe-run-btn" style="width:100%;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Run Pipeline
+      </button>
+      <div class="status-msg" id="pipe-status"></div>
+
+      <!-- Pipeline stage cards -->
+      <span class="fl">Pipeline Progress</span>
+      <div class="psc" id="dash-tl-1">
+        <div class="psc-head">
+          <span class="psc-num">1</span>
+          <span class="psc-title">Reference Files</span>
+          <span class="psc-badge" id="dash-tl-status-1">Queued</span>
+        </div>
+        <div class="psc-desc">Tone bible, character canvas, location ref, episode details</div>
+        <div class="psc-bar"><div class="psc-bar-fill" id="psc-fill-1"></div></div>
+      </div>
+      <div class="psc" id="dash-tl-2">
+        <div class="psc-head">
+          <span class="psc-num">2</span>
+          <span class="psc-title">Shot Breakdown</span>
+          <span class="psc-badge" id="dash-tl-status-2">Queued</span>
+        </div>
+        <div class="psc-desc">Script to shot-by-shot Excel with beat coverage</div>
+        <div class="psc-bar"><div class="psc-bar-fill" id="psc-fill-2"></div></div>
+      </div>
+      <div class="psc" id="dash-tl-3">
+        <div class="psc-head">
+          <span class="psc-num">3</span>
+          <span class="psc-title">Script Audit</span>
+          <span class="psc-badge" id="dash-tl-status-3">Queued</span>
+        </div>
+        <div class="psc-desc">Verify every script sentence appears verbatim in the breakdown</div>
+        <div class="psc-bar"><div class="psc-bar-fill" id="psc-fill-3"></div></div>
+      </div>
+      <div class="psc" id="dash-tl-4">
+        <div class="psc-head">
+          <span class="psc-num">4</span>
+          <span class="psc-title">Reference Images</span>
+          <span class="psc-badge" id="dash-tl-status-4">Queued</span>
+        </div>
+        <div class="psc-desc">Character portraits + location establishing shots</div>
+        <div class="psc-bar"><div class="psc-bar-fill" id="psc-fill-4"></div></div>
+      </div>
+      <div class="psc" id="dash-tl-5">
+        <div class="psc-head">
+          <span class="psc-num">5</span>
+          <span class="psc-title">Shot Images</span>
+          <span class="psc-badge" id="dash-tl-status-5">Queued</span>
+        </div>
+        <div class="psc-desc">Per-shot images anchored to character/location refs</div>
+        <div class="psc-bar"><div class="psc-bar-fill" id="psc-fill-5"></div></div>
+      </div>
+    </div>
+
+    <!-- Right panel: dashboard -->
+    <div class="dash-right">
+      <!-- Stats row -->
+      <div class="dash-stats">
+        <div class="dash-stat">
+          <div class="dash-stat-label">Elapsed</div>
+          <div class="dash-stat-val" id="dash-elapsed">00:00</div>
+        </div>
+        <div class="dash-stat">
+          <div class="dash-stat-label">Stage</div>
+          <div class="dash-stat-val" id="dash-stage">Ready</div>
+        </div>
+        <div class="dash-stat">
+          <div class="dash-stat-label">Tokens</div>
+          <div class="dash-stat-val" id="dash-tokens">0</div>
+        </div>
+        <div class="dash-stat">
+          <div class="dash-stat-label">Cost</div>
+          <div class="dash-stat-val dash-stat-cost" id="dash-cost">$0.00</div>
+        </div>
+      </div>
+
+      <!-- Log -->
+      <div class="dash-log-section">
+        <div class="dash-log-header">Live Log</div>
+        <div class="dash-log" id="pipe-log"><span style="color:var(--text-muted)">Waiting for pipeline run…</span></div>
+      </div>
+
+      <!-- Output -->
+      <div class="dash-output" id="pipe-output-content"></div>
+    </div>
+
   </div>
 
 </div>
@@ -783,6 +2368,99 @@ let LLM_INPUT_COST = 3.0, LLM_OUTPUT_COST = 15.0, LLM_MODEL_NAME = 'unknown';
     document.getElementById('hdr-model').textContent = LLM_MODEL_NAME;
   } catch (_) { document.getElementById('hdr-model').textContent = 'unknown'; }
 })();
+
+// ── Theme toggle ─────────────────────────────────────────────────────────────
+(function() {
+  const saved = localStorage.getItem('frames-theme');
+  if (saved) document.documentElement.setAttribute('data-theme', saved);
+  const icon = document.getElementById('theme-icon');
+  if (icon) icon.textContent = (saved === 'light') ? '☀' : '☾';
+
+  const btn = document.getElementById('theme-toggle');
+  if (btn) btn.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme');
+    const next = current === 'light' ? 'dark' : 'light';
+    if (next === 'dark') {
+      document.documentElement.removeAttribute('data-theme');
+    } else {
+      document.documentElement.setAttribute('data-theme', next);
+    }
+    localStorage.setItem('frames-theme', next);
+    if (icon) icon.textContent = next === 'light' ? '☀' : '☾';
+  });
+})();
+
+// ── Home / Navigation ────────────────────────────────────────────────────────
+const _T = 400;
+function _slideOut(el, dir) {
+  if (!el || el.style.display === 'none') return Promise.resolve();
+  el.style.transition = `opacity ${_T}ms ease, transform ${_T}ms ease`;
+  el.style.opacity = '0';
+  el.style.transform = dir === 'left' ? 'translateX(-60px)' : dir === 'right' ? 'translateX(60px)' : 'translateY(-30px)';
+  return new Promise(r => setTimeout(() => { el.style.display = 'none'; el.style.transform = ''; el.style.opacity = ''; el.style.transition = ''; r(); }, _T));
+}
+function _slideIn(el, displayVal, dir) {
+  if (!el) return;
+  el.style.opacity = '0';
+  el.style.transform = dir === 'left' ? 'translateX(60px)' : dir === 'right' ? 'translateX(-60px)' : 'translateY(30px)';
+  el.style.display = displayVal;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    el.style.transition = `opacity ${_T}ms ease, transform ${_T}ms ease`;
+    el.style.opacity = '1';
+    el.style.transform = 'translateX(0) translateY(0)';
+    setTimeout(() => { el.style.transition = ''; }, _T);
+  }));
+}
+
+async function showHome() {
+  const nav = document.getElementById('stage-nav');
+  const main = document.querySelector('.main');
+  const picker = document.getElementById('stage-picker');
+  const pov = document.getElementById('pipeline-overview');
+  const home = document.getElementById('home-screen');
+  document.getElementById('hdr-back').style.display = 'none';
+  document.querySelectorAll('.stage-view').forEach(v => v.classList.remove('active'));
+  await Promise.all([_slideOut(nav, 'up'), _slideOut(main, 'left'), _slideOut(picker, 'right'), _slideOut(pov, 'right')]);
+  _slideIn(home, 'flex', 'right');
+}
+
+async function enterPipeline() {
+  const home = document.getElementById('home-screen');
+  await _slideOut(home, 'left');
+  document.getElementById('hdr-back').style.display = '';
+  _slideIn(document.getElementById('pipeline-overview'), 'flex', 'left');
+}
+
+async function continueToPipeline() {
+  const overview = document.getElementById('pipeline-overview');
+  await _slideOut(overview, 'left');
+  document.querySelectorAll('.stage-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.stage-view').forEach(v => v.classList.remove('active'));
+  const pipeBtn = document.querySelector('[data-stage="pipeline-view"]');
+  if (pipeBtn) pipeBtn.classList.add('active');
+  document.getElementById('pipeline-view').classList.add('active');
+  _slideIn(document.getElementById('stage-nav'), 'flex', 'up');
+  _slideIn(document.querySelector('.main'), 'block', 'left');
+}
+
+async function enterStages() {
+  const home = document.getElementById('home-screen');
+  await _slideOut(home, 'right');
+  document.getElementById('hdr-back').style.display = '';
+  _slideIn(document.getElementById('stage-picker'), 'flex', 'left');
+}
+
+async function openStage(stageId) {
+  const picker = document.getElementById('stage-picker');
+  await _slideOut(picker, 'left');
+  document.querySelectorAll('.stage-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.stage-view').forEach(v => v.classList.remove('active'));
+  const btn = document.querySelector(`[data-stage="${stageId}"]`);
+  if (btn) btn.classList.add('active');
+  document.getElementById(stageId).classList.add('active');
+  _slideIn(document.getElementById('stage-nav'), 'flex', 'up');
+  _slideIn(document.querySelector('.main'), 'block', 'left');
+}
 
 // ── Stage tabs ────────────────────────────────────────────────────────────────
 document.querySelectorAll('.stage-tab').forEach(btn => btn.addEventListener('click', () => {
@@ -1092,6 +2770,7 @@ s1RunBtn.addEventListener('click', async () => {
   if (s1Poll) clearInterval(s1Poll);
   const s1FilesEl = document.getElementById('s1-files-content');
   s1Poll = startPoll(jobId, d => {
+    updateStageStats('s1', d);
     if (d.status === 'running' && d.progress && d.progress.total) {
       renderProgress(s1FilesEl, d.progress, null, null);
     }
@@ -1106,6 +2785,7 @@ s1RunBtn.addEventListener('click', async () => {
       const r = await fetch(`/api/status/${jobId}`);
       const d = await r.json();
       updateTokenBar(d.tokens);
+      updateStageStats('s1', d);
       if (d.status === 'done') {
         setStatus(s1StatusEl, `Done — ${d.files.length} file(s) generated.`, 'ok');
         s1RenderFiles(jobId, d.files);
@@ -1303,6 +2983,7 @@ s2RunBtn.addEventListener('click', async () => {
   const s2RowRenderer = name => `<div class="file-row"><span class="fname">${name}</span>
     <a class="dl-btn" href="/api/stage2/download/${jobId}?filename=${encodeURIComponent(name)}" download="${name}">Download</a></div>`;
   s2Poll = startPoll(jobId, d => {
+    updateStageStats('s2', d);
     if (d.status === 'running' && d.progress && d.progress.total) {
       renderProgress(s2FilesEl, d.progress, d.output_files || [], s2RowRenderer);
     }
@@ -1326,6 +3007,7 @@ s2RunBtn.addEventListener('click', async () => {
       const r = await fetch(`/api/status/${jobId}`);
       const d = await r.json();
       updateTokenBar(d.tokens);
+      updateStageStats('s2', d);
       if (d.status === 'done') {
         const outputs = (d.output_files && d.output_files.length) ? d.output_files
                      : (d.output_file ? [d.output_file] : []);
@@ -1529,6 +3211,7 @@ s3RunBtn.addEventListener('click', async () => {
 
   s3Poll = startPoll(jobId, d => {
     if (d.tokens) updateTokenBar(d.tokens);
+    updateStageStats('s3', d);
     if (d.status === 'running' && d.progress && d.progress.total) {
       const p = d.progress;
       const pct = p.total > 0 ? Math.round(p.completed / p.total * 100) : 0;
@@ -1545,6 +3228,7 @@ s3RunBtn.addEventListener('click', async () => {
       const r = await fetch(`/api/status/${jobId}`);
       const d = await r.json();
       if (d.tokens) updateTokenBar(d.tokens);
+      updateStageStats('s3', d);
 
       if (d.status === 'flagged' && d.flags) {
         const nIssues = (d.flags.fixes||[]).length + (d.flags.delete_rows||[]).length;
@@ -1622,6 +3306,7 @@ s4RunBtn.addEventListener('click', async () => {
 
   s4Poll = startPoll(jobId, d => {
     updateTokenBarImages(d.tokens);
+    updateStageStats('s4', d);
     if (d.status === 'running' && d.progress && d.progress.total) {
       const p = d.progress;
       const pct = p.total > 0 ? Math.round(p.completed / p.total * 100) : 0;
@@ -1638,6 +3323,7 @@ s4RunBtn.addEventListener('click', async () => {
       const r = await fetch(`/api/status/${jobId}`);
       const d = await r.json();
       updateTokenBarImages(d.tokens);
+      updateStageStats('s4', d);
       if (d.status === 'done') {
         const outputs = (d.output_files && d.output_files.length) ? d.output_files
                       : (d.output_file ? [d.output_file] : []);
@@ -1830,6 +3516,7 @@ s5RunBtn.addEventListener('click', async () => {
 
   s5Poll = startPoll(jobId, d => {
     updateTokenBarImages(d.tokens);
+    updateStageStats('s5', d);
     const files = (d.output_files && d.output_files.length) ? d.output_files : [];
     let html = '';
     if (d.status === 'running' && d.progress && d.progress.total) {
@@ -1865,6 +3552,7 @@ s5RunBtn.addEventListener('click', async () => {
       const r = await fetch(`/api/status/${jobId}`);
       const d = await r.json();
       updateTokenBarImages(d.tokens);
+      updateStageStats('s5', d);
       if (d.status === 'done') {
         const outputs = (d.output_files && d.output_files.length) ? d.output_files
                       : (d.output_file ? [d.output_file] : []);
@@ -2094,6 +3782,7 @@ s6RunBtn.addEventListener('click', async () => {
 
   let s6ShownFiles = [];
   s6Poll = startPoll(jobId, d => {
+    updateStageStats('s6', d);
     const files = (d.output_files && d.output_files.length) ? d.output_files : [];
     let html = '';
     if (files.length > 0) {
@@ -2122,6 +3811,7 @@ s6RunBtn.addEventListener('click', async () => {
     try {
       const r = await fetch(`/api/status/${jobId}`);
       const d = await r.json();
+      updateStageStats('s6', d);
       if (d.status === 'done') {
         const outputs = (d.output_files && d.output_files.length) ? d.output_files
                       : (d.output_file ? [d.output_file] : []);
@@ -2144,6 +3834,340 @@ s6RunBtn.addEventListener('click', async () => {
   });
   es.onerror = () => { es.close(); s6RunBtn.disabled = false; setStatus(s6StatusEl, 'Stream error.', 'err'); };
 });
+
+// ═══════════════════════════════════════ Pipeline ═════════════════════════════
+
+// ── Pipeline Wizard ──────────────────────────────────────────────────────
+// ── Pipeline IIFE (Dashboard) ────────────────────────────────────────────
+(function() {
+  const pipeRunBtn = document.getElementById('pipe-run-btn');
+  const pipeStatusEl = document.getElementById('pipe-status');
+  const pipeOutputEl = document.getElementById('pipe-output-content');
+  const pipeLogEl = document.getElementById('pipe-log');
+  let pipePollId = null;
+  let pipeES = null;
+
+  // File drop zone (dashboard style)
+  const pipeDrop = document.getElementById('pipe-drop-zone');
+  const pipeFileList = document.getElementById('pipe-file-list');
+  let pipeFiles = [];
+  if (pipeDrop) {
+    pipeDrop.addEventListener('dragover', e => { e.preventDefault(); pipeDrop.classList.add('drag-over'); });
+    pipeDrop.addEventListener('dragleave', () => pipeDrop.classList.remove('drag-over'));
+    pipeDrop.addEventListener('drop', e => {
+      e.preventDefault(); pipeDrop.classList.remove('drag-over');
+      pipeFiles = Array.from(e.dataTransfer.files);
+      const dropText = pipeDrop.querySelector('.dash-drop-text');
+      if (dropText) dropText.innerHTML = pipeFiles.length + ' file(s) selected &mdash; <b>browse</b> to change';
+      pipeFileList.innerHTML = pipeFiles.map(f => '<span class="file-tag">' + f.name + '</span>').join('');
+    });
+    pipeDrop.addEventListener('click', () => {
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.multiple = true; inp.accept = '.md,.txt,.docx,.fountain';
+      inp.onchange = () => {
+        pipeFiles = Array.from(inp.files);
+        const dropText = pipeDrop.querySelector('.dash-drop-text');
+        if (dropText) dropText.innerHTML = pipeFiles.length + ' file(s) selected &mdash; <b>browse</b> to change';
+        pipeFileList.innerHTML = pipeFiles.map(f => '<span class="file-tag">' + f.name + '</span>').join('');
+      };
+      inp.click();
+    });
+  }
+
+  function updateDashTimeline(sd) {
+    // Elapsed
+    const elapsed = sd.progress?.elapsed_sec || 0;
+    const m = Math.floor(elapsed / 60), s = Math.floor(elapsed % 60);
+    document.getElementById('dash-elapsed').textContent = String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+
+    // Stage
+    document.getElementById('dash-stage').textContent = sd.pipeline_stage || 'Starting';
+
+    // Tokens
+    const tok = sd.tokens || {};
+    document.getElementById('dash-tokens').textContent = ((tok.input||0) + (tok.output||0)).toLocaleString();
+
+    // Cost
+    document.getElementById('dash-cost').textContent = '$' + (sd.total_cost || 0).toFixed(2);
+
+    // Timeline — 5 cards, stage3+4 maps to both card 3 and card 4
+    const stageOrder = ['stage1', 'stage2', 'stage3', 'stage4', 'stage5'];
+    const tlIds = ['dash-tl-1', 'dash-tl-2', 'dash-tl-3', 'dash-tl-4', 'dash-tl-5'];
+    const statusIds = ['dash-tl-status-1', 'dash-tl-status-2', 'dash-tl-status-3', 'dash-tl-status-4', 'dash-tl-status-5'];
+    const fillIds = ['psc-fill-1', 'psc-fill-2', 'psc-fill-3', 'psc-fill-4', 'psc-fill-5'];
+    // Map pipeline_stage to card indices
+    const ps = sd.pipeline_stage || '';
+    let currentIdx = stageOrder.indexOf(ps);
+    if (ps === 'stage3+4') currentIdx = 2; // both 3 and 4 active
+
+    tlIds.forEach((id, i) => {
+      const node = document.getElementById(id);
+      const statusEl = document.getElementById(statusIds[i]);
+      const fillEl = document.getElementById(fillIds[i]);
+      if (!node || !statusEl) return;
+      node.className = 'psc';
+      if (ps === 'complete') {
+        node.classList.add('done'); statusEl.textContent = 'Done';
+        if (fillEl) fillEl.style.width = '100%';
+      } else if (ps === 'stage3+4' && (i === 2 || i === 3)) {
+        node.classList.add('active'); statusEl.textContent = 'Running...';
+        const p = sd.progress || {};
+        if (fillEl) fillEl.style.width = (p.total > 0 ? (p.completed / p.total * 100) : 10) + '%';
+      } else if (i < currentIdx || (ps === 'stage3+4' && i < 2)) {
+        node.classList.add('done'); statusEl.textContent = 'Done';
+        if (fillEl) fillEl.style.width = '100%';
+      } else if (i === currentIdx) {
+        node.classList.add('active'); statusEl.textContent = 'Running...';
+        const p = sd.progress || {};
+        if (fillEl) fillEl.style.width = (p.total > 0 ? (p.completed / p.total * 100) : 10) + '%';
+      } else {
+        statusEl.textContent = 'Queued';
+        if (fillEl) fillEl.style.width = '0%';
+      }
+    });
+  }
+
+  const pipeStartTime = { value: 0 };
+  let pipeTimerInterval = null;
+
+  function resetDashForNewRun() {
+    document.getElementById('dash-elapsed').textContent = '00:00';
+    document.getElementById('dash-stage').textContent = 'Ready';
+    document.getElementById('dash-tokens').textContent = '0';
+    document.getElementById('dash-cost').textContent = '$0.00';
+    ['dash-tl-1','dash-tl-2','dash-tl-34','dash-tl-5'].forEach(id => {
+      const node = document.getElementById(id);
+      if (node) node.className = 'dash-tl-node';
+    });
+    ['dash-tl-status-1','dash-tl-status-2','dash-tl-status-34','dash-tl-status-5'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = 'Queued';
+    });
+    if (pipeOutputEl) pipeOutputEl.innerHTML = '';
+  }
+
+  if (pipeRunBtn) pipeRunBtn.addEventListener('click', async () => {
+    if (!pipeFiles.length) { setStatus(pipeStatusEl, 'Upload script files first.', 'err'); return; }
+
+    pipeRunBtn.disabled = true;
+    pipeRunBtn.querySelector('svg').style.display = 'none';
+    pipeRunBtn.childNodes[pipeRunBtn.childNodes.length - 1].textContent = ' Running...';
+    setStatus(pipeStatusEl, 'Starting pipeline...');
+
+    // Clear log + output
+    if (pipeLogEl) pipeLogEl.innerHTML = '';
+    if (pipeOutputEl) pipeOutputEl.innerHTML = '';
+
+    pipeStartTime.value = Date.now();
+    if (pipeTimerInterval) clearInterval(pipeTimerInterval);
+    pipeTimerInterval = setInterval(() => {
+      const sec = Math.floor((Date.now() - pipeStartTime.value) / 1000);
+      const mm = Math.floor(sec / 60), ss = sec % 60;
+      document.getElementById('dash-elapsed').textContent = String(mm).padStart(2, '0') + ':' + String(ss).padStart(2, '0');
+    }, 1000);
+
+    const fd = new FormData();
+    pipeFiles.forEach(f => fd.append('scripts', f));
+    fd.append('show_name', document.getElementById('pipe-show-name').value || 'Untitled');
+    fd.append('workers', document.getElementById('pipe-workers').value || '3');
+
+    try {
+      const res = await fetch('/api/pipeline/run', { method: 'POST', body: fd });
+      const d = await res.json();
+      if (d.error) {
+        setStatus(pipeStatusEl, d.error, 'err');
+        pipeRunBtn.disabled = false;
+        pipeRunBtn.querySelector('svg').style.display = '';
+        pipeRunBtn.childNodes[pipeRunBtn.childNodes.length - 1].textContent = ' Run Pipeline';
+        if (pipeTimerInterval) clearInterval(pipeTimerInterval);
+        resetDashForNewRun();
+        return;
+      }
+      const jobId = d.job_id;
+
+      pipeES = new EventSource('/api/stream/' + jobId);
+      pipeES.onmessage = e => { logLine(pipeLogEl, e.data); };
+      pipeES.addEventListener('done', () => { pipeES.close(); });
+
+      pipePollId = startPoll(jobId, sd => {
+        if (sd.pipeline_stage) {
+          updateDashTimeline(sd);
+          setStatus(pipeStatusEl, 'Running: ' + sd.pipeline_stage);
+        }
+        if (sd.status === 'done' || sd.status === 'failed') {
+          if (pipePollId) { clearInterval(pipePollId); pipePollId = null; }
+          if (pipeTimerInterval) { clearInterval(pipeTimerInterval); pipeTimerInterval = null; }
+          pipeRunBtn.disabled = false;
+          pipeRunBtn.querySelector('svg').style.display = '';
+          pipeRunBtn.childNodes[pipeRunBtn.childNodes.length - 1].textContent = ' Run Pipeline';
+          if (sd.status === 'done') {
+            setStatus(pipeStatusEl, 'Pipeline complete!', 'ok');
+            // Mark all timeline nodes done
+            ['dash-tl-1','dash-tl-2','dash-tl-34','dash-tl-5'].forEach(id => {
+              const node = document.getElementById(id);
+              if (node) { node.className = 'dash-tl-node done'; }
+            });
+            ['dash-tl-status-1','dash-tl-status-2','dash-tl-status-34','dash-tl-status-5'].forEach(id => {
+              const el = document.getElementById(id);
+              if (el) el.textContent = 'Done';
+            });
+            document.getElementById('dash-stage').textContent = 'Complete';
+
+            const files = sd.output_files || [];
+            let html = '<div style="padding:16px 0"><h3 style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">Pipeline Complete</h3>';
+            if (files.length) {
+              html += '<div style="margin-bottom:16px">';
+              files.forEach(name => {
+                html += '<div style="margin-bottom:6px;display:flex;align-items:center;gap:10px;">'
+                      + '<span style="color:var(--text-muted);font-size:12px;">' + name + '</span>'
+                      + '<a href="/api/pipeline/download/' + jobId + '?filename=' + encodeURIComponent(name) + '" download="' + name + '" '
+                      + 'style="color:var(--accent);font-size:11px;text-decoration:none;border:1px solid var(--border);padding:3px 10px;border-radius:6px;font-weight:600;">Download</a></div>';
+              });
+              html += '</div>';
+            }
+            html += tokenSummaryHtml(sd.tokens, false, sd.file_tokens, sd.total_cost);
+            html += '<div style="margin-top:16px"><button onclick="(function(){ document.getElementById(\'pipe-output-content\').innerHTML=\'\'; document.getElementById(\'dash-elapsed\').textContent=\'00:00\'; document.getElementById(\'dash-stage\').textContent=\'Ready\'; document.getElementById(\'dash-tokens\').textContent=\'0\'; document.getElementById(\'dash-cost\').textContent=\'$0.00\'; [\'dash-tl-1\',\'dash-tl-2\',\'dash-tl-34\',\'dash-tl-5\'].forEach(function(id){ var n=document.getElementById(id); if(n) n.className=\'dash-tl-node\'; }); [\'dash-tl-status-1\',\'dash-tl-status-2\',\'dash-tl-status-34\',\'dash-tl-status-5\'].forEach(function(id){ var e=document.getElementById(id); if(e) e.textContent=\'Queued\'; }); })()" '
+                  + 'class="dash-run-btn" style="background:var(--bg-surface);color:var(--text);border:1px solid var(--border);">Run Again</button></div>';
+            html += '</div>';
+            if (pipeOutputEl) pipeOutputEl.innerHTML = html;
+          } else {
+            setStatus(pipeStatusEl, 'Pipeline failed -- check the log.', 'err');
+            document.getElementById('dash-stage').textContent = 'Failed';
+            ['dash-tl-1','dash-tl-2','dash-tl-34','dash-tl-5'].forEach(id => {
+              const node = document.getElementById(id);
+              if (node && node.classList.contains('active')) {
+                node.className = 'dash-tl-node failed';
+              }
+            });
+          }
+        }
+      });
+    } catch(e) {
+      setStatus(pipeStatusEl, 'Failed to start pipeline: ' + e.message, 'err');
+      pipeRunBtn.disabled = false;
+      pipeRunBtn.querySelector('svg').style.display = '';
+      pipeRunBtn.childNodes[pipeRunBtn.childNodes.length - 1].textContent = ' Run Pipeline';
+      if (pipeTimerInterval) clearInterval(pipeTimerInterval);
+      resetDashForNewRun();
+    }
+  });
+})();
+
+// Constellation background
+(function() {
+  const canvas = document.getElementById('constellation-bg');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let particles = [];
+  const PARTICLE_COUNT = 60;
+  const CONNECT_DIST = 120;
+  const SPEED = 0.3;
+
+  function resize() {
+    canvas.width = canvas.parentElement.offsetWidth;
+    canvas.height = canvas.parentElement.offsetHeight;
+  }
+
+  function init() {
+    resize();
+    particles = [];
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        vx: (Math.random() - 0.5) * SPEED,
+        vy: (Math.random() - 0.5) * SPEED,
+        r: Math.random() * 1.5 + 0.5,
+      });
+    }
+  }
+
+  function draw() {
+    if (canvas.parentElement.style.display === 'none') { requestAnimationFrame(draw); return; }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Update positions
+    particles.forEach(p => {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+      if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+    });
+
+    // Draw connections
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < CONNECT_DIST) {
+          const alpha = (1 - dist / CONNECT_DIST) * 0.15;
+          ctx.strokeStyle = `rgba(88, 166, 255, ${alpha})`;
+          ctx.lineWidth = 0.5;
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Draw particles
+    particles.forEach(p => {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(88, 166, 255, 0.4)';
+      ctx.fill();
+    });
+
+    requestAnimationFrame(draw);
+  }
+
+  init();
+  draw();
+  window.addEventListener('resize', () => { resize(); });
+})();
+
+// 3D tilt on home cards
+document.querySelectorAll('.home-card').forEach(card => {
+  card.addEventListener('mousemove', e => {
+    const rect = card.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    const rotateX = ((y - centerY) / centerY) * -8;
+    const rotateY = ((x - centerX) / centerX) * 8;
+    card.style.transform = `perspective(600px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-10px) scale(1.06)`;
+  });
+  card.addEventListener('mouseleave', () => {
+    card.style.transform = '';
+  });
+});
+
+// ═══════════════════════════════════════ Stage Stats Bar ══════════════════════
+function updateStageStats(prefix, sd) {
+  const elapsed = sd.progress?.elapsed_sec || 0;
+  const m = Math.floor(elapsed / 60), s = Math.floor(elapsed % 60);
+  const elapsedEl = document.getElementById(prefix + '-elapsed');
+  if (elapsedEl) elapsedEl.textContent = String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+
+  const prog = sd.progress || {};
+  const progEl = document.getElementById(prefix + '-progress');
+  if (progEl) {
+    if (prog.total > 0) progEl.textContent = prog.completed + '/' + prog.total;
+    else progEl.textContent = prog.stage || '--';
+  }
+
+  const tok = sd.tokens || {};
+  const tokEl = document.getElementById(prefix + '-tokens');
+  if (tokEl) tokEl.textContent = ((tok.input||0) + (tok.output||0)).toLocaleString();
+
+  const costEl = document.getElementById(prefix + '-cost');
+  if (costEl) {
+    const cost = sd.total_cost || 0;
+    costEl.textContent = '$' + cost.toFixed(2);
+  }
+}
 
 </script>
 </body>
