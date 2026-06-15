@@ -1,0 +1,36 @@
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Env and secrets (mount or pass at runtime)
+.env
+.env.*
+!.env.example
+
+# Workspace output (generated at runtime)
+workspace/
+*_workspace/
+
+# Git and IDE
+.git
+.gitignore
+.claude
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Logs
+*.log
+
+# Docs
+*.md
+!README.md
