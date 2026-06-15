@@ -1372,30 +1372,44 @@ def _run_stage1_core(job_id: str, job_dir: Path, mode: str, workers: int, episod
     filenames = [episode] if mode == "episode" else None
     scripts   = read_scripts(scripts_dir, filenames)
 
-    if mode in ("full", "all-episodes"):
-        _log("\n  -- Episode Detail Files ----------------------")
-        generate_all_episode_details(scripts, raw_out, show_name, workers, jobs[job_id]["queue"], job_id)
-
-    if mode in ("full", "show-level"):
-        _log("\n  -- Show-Level Files (batched) ----------------")
-        generate_all_show_level_batches(scripts, raw_out, show_name)
-
-    if mode == "episode":
-        stem = Path(episode).stem
-        _log(f"\n  -- Single episode: {stem} --")
-        _episode_detail_task(stem, scripts[stem], raw_out, show_name, 1, jobs[job_id]["queue"], job_id)
-
     show_level_dir = job_dir / "show level files"
     ep_details_dir = job_dir / "episode details"
     show_level_dir.mkdir(exist_ok=True)
     ep_details_dir.mkdir(exist_ok=True)
 
-    moved_show = moved_ep = 0
-    for f in raw_out.glob("*.md"):
-        dest = show_level_dir if _is_show_level_file(f.name) else ep_details_dir
-        shutil.copy2(f, dest / f.name)
-        if dest is show_level_dir: moved_show += 1
-        else:                      moved_ep   += 1
+    def _move_completed_files():
+        """Move any new files from raw_out to final dirs and update output_files."""
+        moved = 0
+        for f in raw_out.glob("*.md"):
+            dest = show_level_dir if _is_show_level_file(f.name) else ep_details_dir
+            final = dest / f.name
+            shutil.copy2(f, final)
+            f.unlink()
+            subfolder = "show level files" if dest is show_level_dir else "episode details"
+            entry = f"{subfolder}/{f.name}"
+            if entry not in jobs[job_id].get("output_files", []):
+                jobs[job_id].setdefault("output_files", []).append(entry)
+            moved += 1
+        return moved
+
+    if mode in ("full", "all-episodes"):
+        _log("\n  -- Episode Detail Files ----------------------")
+        generate_all_episode_details(scripts, raw_out, show_name, workers, jobs[job_id]["queue"], job_id)
+        _move_completed_files()
+
+    if mode in ("full", "show-level"):
+        _log("\n  -- Show-Level Files (batched) ----------------")
+        generate_all_show_level_batches(scripts, raw_out, show_name)
+        _move_completed_files()
+
+    if mode == "episode":
+        stem = Path(episode).stem
+        _log(f"\n  -- Single episode: {stem} --")
+        _episode_detail_task(stem, scripts[stem], raw_out, show_name, 1, jobs[job_id]["queue"], job_id)
+        _move_completed_files()
+
+    moved_show = len(list(show_level_dir.glob("*.md")))
+    moved_ep = len(list(ep_details_dir.glob("*.md")))
     shutil.rmtree(raw_out, ignore_errors=True)
 
     tok = jobs[job_id]["tokens"]
@@ -2804,6 +2818,9 @@ def _run_stage3_batch_core(job_id: str, job_dir: Path, excel_paths: list, script
     for i, ep in enumerate(excel_paths, 1):
         if n > 1:
             _log(f"\n  ──── File {i}/{n}: {ep.name} ────")
+        jobs[job_id]["progress"]["completed"] = i - 1
+        jobs[job_id]["progress"]["total"] = n
+        jobs[job_id]["progress"]["stage"] = ep.stem
         tok_before = dict(jobs[job_id]["tokens"])
         try:
             flagged = _run_s3_one(job_id, job_dir, ep, script_text)
@@ -2812,6 +2829,10 @@ def _run_stage3_batch_core(job_id: str, job_dir: Path, excel_paths: list, script
         except Exception as e:
             _log(f"[ERROR] {ep.name} failed: {e}")
             import traceback; traceback.print_exc()
+        jobs[job_id]["progress"]["completed"] = i
+        for out_file in job_dir.glob(f"{ep.stem}*_audited.xlsx"):
+            if out_file.name not in jobs[job_id].get("output_files", []):
+                jobs[job_id].setdefault("output_files", []).append(out_file.name)
         tok_after = jobs[job_id]["tokens"]
         f_in = tok_after["input"] - tok_before["input"]
         f_out = tok_after["output"] - tok_before["output"]
@@ -3137,6 +3158,10 @@ def _run_stage4_core(job_id: str, job_dir: Path, items: list):
             if url:
                 item["generated_url"] = url
                 _log(f"  ok  Generated image for {name}")
+                fname = f"ref_{idx}.png"
+                rlist = jobs[job_id].setdefault("ref_images", [])
+                if not any(r["filename"] == fname for r in rlist):
+                    rlist.append({"name": name, "filename": fname})
             else:
                 item["generated_url"] = ""
                 _log(f"  !!  Failed to generate image for {name}")
@@ -3651,6 +3676,10 @@ def _run_stage5_core(job_id: str, job_dir: Path, excel_path: Path, char_dir: Pat
                 shot["preview_1"] = url
                 generated += 1
                 _log(f"  ok  Shot {sn} saved")
+                fname = f"shot_{sn}.png"
+                slist = jobs[job_id].setdefault("in_progress_shots", [])
+                if not any(s["filename"] == fname for s in slist):
+                    slist.append({"name": f"shot_{sn}", "filename": fname})
             else:
                 _log(f"  x   Shot {sn}: generation failed")
             jobs[job_id]["progress"]["completed"] = generated
@@ -3664,7 +3693,8 @@ def _run_stage5_core(job_id: str, job_dir: Path, excel_path: Path, char_dir: Pat
     _s5_write_output_excel(shots, excel_path, output_path, job_dir)
 
     jobs[job_id]["output_file"] = output_name
-    jobs[job_id]["output_files"] = [output_name]
+    if output_name not in jobs[job_id].get("output_files", []):
+        jobs[job_id].setdefault("output_files", []).append(output_name)
 
     _log(f"  Creating Google Sheet...")
     sheet_title = f"Stage 5 — {excel_path.stem}"
@@ -4146,10 +4176,7 @@ def _s6_render_video(shots, concat_path: Path, audio_path: Path,
         if r.returncode != 0:
             raise RuntimeError(f"ffmpeg base pass failed:\n{r.stderr[-800:]}")
         nosub_mb = nosub_path.stat().st_size / (1024 * 1024)
-        _log(f"  ok  Base video ready: {nosub_path.name} ({nosub_mb:.1f} MB) — downloadable now")
-        jid = getattr(_job_local, "job_id", None)
-        if jid and jid in jobs:
-            jobs[jid].setdefault("output_files", []).append(nosub_path.name)
+        _log(f"  ok  Base video rendered ({nosub_mb:.1f} MB) — burning subtitles...")
         _log("  Burning subtitles (this takes a while)...")
         ass_esc = str(ass_path).replace("\\", "/").replace(":", "\\:")
         fd_esc = font_dir.replace("\\", "/").replace(":", "\\:")
@@ -4249,9 +4276,9 @@ def run_stage6_batch(job_id, job_dir, pairs, whisper_model, subs, sub_color="yel
             out = _run_s6_one(job_id, pair_dir, excel_path, audio_path,
                               whisper_model, subs, i + 1 if n > 1 else 0, i * steps_per, sub_color)
             outputs.append(out.name)
+            jobs[job_id]["output_files"] = list(outputs)
+            jobs[job_id]["output_file"] = outputs[0]
         jobs[job_id]["progress"]["completed"] = steps_per * n
-        jobs[job_id]["output_file"] = outputs[0]
-        jobs[job_id]["output_files"] = outputs
         _log(f"\n{'=' * 60}")
         _log(f"  STAGE 4 COMPLETE - {len(outputs)} video(s)")
         for name in outputs: _log(f"    -> {name}")
@@ -4382,6 +4409,26 @@ def run_pipeline(job_id: str, job_dir: Path, scripts: list, show_name: str, work
         if s4_error[0]:
             _log(f"  !! Stage 4 failed: {s4_error[0]}")
 
+        # ── Pause for reference image review ─────────────────────────────────
+        # Collect reference images
+        ref_images = []
+        s4_images_dir = job_dir / "images"
+        if s4_images_dir.exists():
+            for img_path in sorted(s4_images_dir.glob("ref_*.png")):
+                ref_images.append({"name": img_path.stem, "filename": img_path.name})
+
+        jobs[job_id]["ref_images"] = ref_images
+        jobs[job_id]["progress"]["pipeline_stage"] = "review_refs"
+        _log(f"\n  ══ REVIEW: {len(ref_images)} reference images ready for review ══")
+        _log("  Waiting for user approval to continue to Stage 5...")
+
+        # Wait for user to approve
+        jobs[job_id]["_continue_event"] = threading.Event()
+        jobs[job_id]["_continue_event"].wait()  # blocks until user clicks Continue
+        del jobs[job_id]["_continue_event"]
+
+        _log("  User approved — continuing to Stage 5")
+
         # ── Stage 5: Shot Image Generation ───────────────────────────────────
         jobs[job_id]["progress"]["pipeline_stage"] = "stage5"
         _log("\n  ══ PIPELINE STAGE 5: Shot Image Generation ══")
@@ -4391,13 +4438,32 @@ def run_pipeline(job_id: str, job_dir: Path, scripts: list, show_name: str, work
         s5_excels = audited_excels if audited_excels else excel_files
 
         # Find Stage 4 reference image dir
-        s4_images_dir = job_dir / "images"
         char_dir = s4_images_dir if s4_images_dir.exists() else None
         loc_dir = char_dir  # Same dir for both in Stage 4
 
+        jobs[job_id]["completed_episodes"] = []
+
         for ep_excel in s5_excels:
-            _log(f"  Running Stage 5 for {ep_excel.name}...")
+            ep_name = ep_excel.stem.replace("_breakdown", "").replace("_audited", "")
+            _log(f"  Running Stage 5 for {ep_name}...")
             _run_stage5_core(job_id, job_dir, ep_excel, char_dir, loc_dir)
+
+            # Collect shot images for this episode
+            ep_shots = []
+            ep_images_dir = job_dir / "images"
+            if ep_images_dir.exists():
+                for img_path in sorted(ep_images_dir.glob(f"shot_*.png")):
+                    ep_shots.append({"name": img_path.stem, "filename": img_path.name})
+
+            jobs[job_id]["completed_episodes"].append({
+                "name": ep_name,
+                "excel": ep_excel.name,
+                "shots": ep_shots,
+                "_s5_prompts": dict(jobs[job_id].get("s5_prompts", {})),
+                "_s5_shots":   list(jobs[job_id].get("s5_shots", [])),
+                "_s5_excel_path": jobs[job_id].get("s5_excel_path", ""),
+            })
+            _log(f"  Episode {ep_name} complete — {len(ep_shots)} shot images")
 
         # ── Pipeline complete ────────────────────────────────────────────────
         jobs[job_id]["progress"]["pipeline_stage"] = "complete"
@@ -5307,6 +5373,68 @@ def api_pipeline_run():
     return jsonify({"job_id": job_id})
 
 
+@app.route("/api/pipeline/ref-images/<job_id>")
+def api_pipeline_ref_images(job_id):
+    """Return list of reference images for review."""
+    job = jobs.get(job_id)
+    if not job:
+        return jsonify({"error": "Job not found"}), 404
+    images = job.get("ref_images", [])
+    return jsonify({"images": images, "job_id": job_id})
+
+
+@app.route("/api/pipeline/continue/<job_id>", methods=["POST"])
+def api_pipeline_continue(job_id):
+    """Resume pipeline after reference image review."""
+    job = jobs.get(job_id)
+    if not job:
+        return jsonify({"error": "Job not found"}), 404
+    event = job.get("_continue_event")
+    if event:
+        event.set()
+        return jsonify({"ok": True})
+    return jsonify({"error": "Pipeline not waiting for review"}), 400
+
+
+@app.route("/api/pipeline/episodes/<job_id>")
+def api_pipeline_episodes(job_id):
+    """Return list of completed episodes with shot images."""
+    job = jobs.get(job_id)
+    if not job:
+        return jsonify({"error": "Job not found"}), 404
+    return jsonify({"episodes": job.get("completed_episodes", [])})
+
+
+@app.route("/api/pipeline/image/<job_id>/<filename>")
+def api_pipeline_serve_image(job_id, filename):
+    """Serve an image file from the pipeline job directory."""
+    job = jobs.get(job_id)
+    if not job:
+        return jsonify({"error": "Job not found"}), 404
+    job_dir = job.get("job_dir")
+    if not job_dir:
+        job_dir = WORKSPACE / f"pipeline_{job_id}"
+    img_path = Path(job_dir) / "images" / filename
+    if img_path.exists():
+        return send_file(str(img_path))
+    return jsonify({"error": "Image not found"}), 404
+
+
+@app.route("/api/pipeline/download-ep/<job_id>/<filename>")
+def api_pipeline_download_ep(job_id, filename):
+    """Download a per-episode Excel file from the pipeline job."""
+    job = jobs.get(job_id)
+    if not job:
+        return jsonify({"error": "Job not found"}), 404
+    job_dir = job.get("job_dir")
+    if not job_dir:
+        job_dir = WORKSPACE / f"pipeline_{job_id}"
+    file_path = Path(job_dir) / filename
+    if file_path.exists():
+        return send_file(str(file_path), as_attachment=True, download_name=filename)
+    return jsonify({"error": "File not found"}), 404
+
+
 # Stage 6 ──
 
 @app.route("/api/stage6/run", methods=["POST"])
@@ -5493,7 +5621,114 @@ def api_status(job_id: str):
     if job.get("job_type") == "pipeline":
         resp["job_type"] = "pipeline"
         resp["pipeline_stage"] = prog.get("pipeline_stage", "")
+        resp["ref_images"] = job.get("ref_images", [])
+        resp["completed_episodes"] = job.get("completed_episodes", [])
+        resp["in_progress_shots"] = job.get("in_progress_shots", [])
     return jsonify(resp)
+
+
+@app.route("/api/pipeline/regen-shots", methods=["POST"])
+def api_pipeline_regen_shots():
+    """Regenerate specific shots for a completed pipeline episode."""
+    body     = request.get_json(force=True) or {}
+    job_id   = body.get("job_id", "")
+    ep_name  = body.get("ep_name", "")
+    feedback = body.get("feedback", "").strip()
+
+    if not job_id or job_id not in jobs:
+        return jsonify({"error": "Job not found"}), 404
+    if not feedback:
+        return jsonify({"error": "No feedback provided"}), 400
+
+    job = jobs[job_id]
+    ep_data = next((ep for ep in job.get("completed_episodes", []) if ep["name"] == ep_name), None)
+    if not ep_data:
+        return jsonify({"error": f"Episode '{ep_name}' not found"}), 404
+
+    prompts    = ep_data.get("_s5_prompts", {})
+    shots      = ep_data.get("_s5_shots", [])
+    excel_path = Path(ep_data.get("_s5_excel_path", ""))
+    if not prompts or not shots:
+        return jsonify({"error": "No shot data for this episode — pipeline may not have captured it"}), 400
+
+    shot_nums = set()
+    for m in re.finditer(r'(?:shot\s*#?\s*|^#?\s*)(\d+)', feedback, re.IGNORECASE | re.MULTILINE):
+        shot_nums.add(int(m.group(1)))
+    if not shot_nums:
+        return jsonify({"error": "Could not find shot numbers in feedback. Use: Shot 12: description"}), 400
+
+    regen_queue  = queue.Queue()
+    regen_job_id = f"{job_id}_{ep_name}_regen_{int(time.time())}"
+    jobs[regen_job_id] = {
+        "status": "running", "queue": regen_queue, "job_dir": job["job_dir"],
+        "tokens": {"input": 0, "output": 0, "calls": 0},
+        "tokens_lock": threading.Lock(), "file_tokens": [],
+        "progress": {"total": len(shot_nums), "completed": 0, "stage": "Starting"},
+    }
+
+    def _run_regen():
+        _set_job_context(regen_job_id, regen_queue)
+        try:
+            _log(f"\n{'=' * 60}")
+            _log(f"  PIPELINE REGEN — {ep_name}: {len(shot_nums)} shot(s)")
+            _log(f"  Feedback: {feedback[:200]}")
+            _log(f"{'=' * 60}")
+            regen_count = 0
+            for i, sn in enumerate(sorted(shot_nums)):
+                orig_prompt = prompts.get(sn, "")
+                if not orig_prompt:
+                    _log(f"  !!  Shot {sn}: no original prompt — skipping")
+                    jobs[regen_job_id]["progress"]["completed"] = i + 1
+                    continue
+                shot_fb = ""
+                for line in feedback.split("\n"):
+                    if re.search(rf'(?:shot\s*#?\s*)?{sn}\b', line, re.IGNORECASE):
+                        shot_fb += re.sub(rf'^.*?{sn}\s*[:—\-]\s*', '', line, flags=re.IGNORECASE).strip() + " "
+                if not shot_fb.strip():
+                    shot_fb = feedback
+                regen_prompt = orig_prompt + f"\n\nFEEDBACK — fix these issues: {shot_fb.strip()}"
+                jobs[regen_job_id]["progress"]["stage"] = f"Shot {sn} ({i+1}/{len(shot_nums)})"
+                _log(f"  ... Shot {sn}: {shot_fb.strip()[:100]}")
+                url = _s5_generate_one(regen_prompt, job_id, sn, job["job_dir"], regen_job_id=regen_job_id)
+                if url:
+                    for s in shots:
+                        if s.get("num") == sn:
+                            s["preview_1"] = url
+                            break
+                    regen_count += 1
+                    _log(f"  ok  Shot {sn} regenerated")
+                else:
+                    _log(f"  x   Shot {sn}: failed")
+                jobs[regen_job_id]["progress"]["completed"] = i + 1
+                if i < len(shot_nums) - 1:
+                    time.sleep(S5_RATE_LIMIT_DELAY)
+
+            # Rewrite Excel with updated images
+            if excel_path.exists():
+                output_name = f"{excel_path.stem}_with_images.xlsx"
+                output_path = job["job_dir"] / output_name
+                _s5_write_output_excel(shots, excel_path, output_path, job["job_dir"])
+                _log(f"  ok  Excel updated: {output_name}")
+
+            # Refresh ep_data shots list from disk
+            ep_data["_s5_shots"] = shots
+            ep_shots = []
+            ep_images_dir = job["job_dir"] / "images"
+            if ep_images_dir.exists():
+                for img_path in sorted(ep_images_dir.glob("shot_*.png")):
+                    ep_shots.append({"name": img_path.stem, "filename": img_path.name})
+            ep_data["shots"] = ep_shots
+
+            _log(f"\n  REGEN COMPLETE — {regen_count}/{len(shot_nums)} shots regenerated\n")
+            jobs[regen_job_id]["status"] = "done"
+        except Exception as e:
+            _log(f"\n[ERROR] {e}\n{traceback.format_exc()}")
+            jobs[regen_job_id]["status"] = "failed"
+        finally:
+            regen_queue.put(None)
+
+    threading.Thread(target=_run_regen, daemon=True).start()
+    return jsonify({"job_id": regen_job_id, "shots": sorted(shot_nums)})
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

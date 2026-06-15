@@ -568,6 +568,13 @@ select { cursor: pointer; }
 }
 .tab-btn:hover { background: rgba(88,166,255,.06); }
 .tab-btn.active { color: var(--accent); background: rgba(88,166,255,.08); border-bottom: none; }
+.tab-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: #3fb950; color: #000; font-size: 10px; font-weight: 800;
+  margin-left: 4px; animation: badgePop .3s ease;
+}
+@keyframes badgePop { from { transform: scale(0); } to { transform: scale(1); } }
 
 .tab-pane { display: none; flex: 1; overflow: hidden; flex-direction: column; }
 .tab-pane.active { display: flex; }
@@ -1591,6 +1598,92 @@ select { cursor: pointer; }
 #stage5-view .tab-btn.active { color: #f59e0b; background: rgba(245,158,11,.08); }
 #stage6-view .tab-btn.active { color: #10b981; background: rgba(16,185,129,.08); }
 
+/* Reference image review */
+.dash-review-refs { padding: 16px; overflow-y: auto; flex: 1; }
+.dash-review-header { margin-bottom: 16px; }
+.dash-review-header h3 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.dash-review-header p { font-size: 12px; color: var(--text-muted); }
+.dash-ref-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px; margin-bottom: 16px;
+}
+.dash-ref-card {
+  border-radius: 8px; overflow: hidden; background: var(--bg-surface);
+  border: 1px solid var(--border); transition: border-color .2s;
+}
+.dash-ref-card:hover { border-color: var(--accent); }
+.dash-ref-card img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+.dash-ref-card .ref-name {
+  padding: 6px 8px; font-size: 10px; font-weight: 600; color: var(--text-muted);
+  text-align: center; border-top: 1px solid var(--border);
+}
+.dash-review-actions { padding: 12px 0; display: flex; justify-content: center; }
+
+/* Episode shot review */
+.dash-review-shots { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.dash-ep-tabs {
+  display: flex; gap: 4px; padding: 8px 12px; flex-shrink: 0;
+  background: var(--bg-surface); border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+.dash-ep-tab {
+  padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 600;
+  color: var(--text-muted); background: none; border: 1px solid transparent;
+  cursor: pointer; white-space: nowrap; transition: all .2s;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.dash-ep-tab:hover { background: rgba(88,166,255,.06); }
+.dash-ep-tab.active { color: var(--accent); background: rgba(88,166,255,.08); border-color: rgba(88,166,255,.2); }
+.dash-ep-tab.generating { color: var(--text-muted); opacity: .5; cursor: default; }
+.dash-ep-content { flex: 1; overflow-y: auto; padding: 12px; }
+.dash-ep-pane { display: none; }
+.dash-ep-pane.active { display: block; }
+.dash-ep-shot-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px; margin-bottom: 12px;
+}
+.dash-ep-shot {
+  border-radius: 6px; overflow: hidden; background: var(--bg-surface);
+  border: 1px solid var(--border); transition: border-color .2s; cursor: pointer;
+}
+.dash-ep-shot:hover { border-color: var(--accent); }
+.dash-ep-shot.selected { border-color: #f59e0b; border-width: 2px; }
+.dash-ep-shot img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+.dash-ep-shot .shot-label {
+  padding: 4px 6px; font-size: 9px; font-weight: 600; color: var(--text-muted);
+  border-top: 1px solid var(--border); text-align: center;
+}
+.dash-ep-feedback {
+  display: flex; flex-direction: column; gap: 0; padding: 10px 0 4px;
+  border-top: 1px solid var(--border); margin-top: 8px;
+}
+.dash-ep-feedback textarea {
+  width: 100%; min-height: 56px; padding: 8px 10px; border-radius: 6px;
+  background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
+  font-size: 12px; font-family: inherit; resize: vertical;
+}
+.dash-ep-regen-btn {
+  padding: 7px 16px; border-radius: 6px; border: none;
+  background: #f59e0b; color: #000; font-size: 11px; font-weight: 700;
+  cursor: pointer; white-space: nowrap; transition: all .2s;
+}
+.dash-ep-regen-btn:hover:not(:disabled) { background: #fbbf24; transform: translateY(-1px); }
+.dash-ep-regen-btn:disabled { opacity: .5; cursor: not-allowed; }
+.dash-ep-regen-stat { font-size: 11px; color: var(--text-muted); }
+.dash-ep-actions { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.dash-ep-dl-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 16px; border-radius: 6px; font-size: 12px; font-weight: 700;
+  background: var(--accent); color: #fff; text-decoration: none;
+  transition: all .2s; font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.dash-ep-dl-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(88,166,255,.25); }
+.dash-ep-done-badge {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+  padding: 3px 10px; border-radius: 6px;
+  background: rgba(63,185,80,.1); color: #3fb950; border: 1px solid rgba(63,185,80,.2);
+}
+
 </style>
 </head>
 <body>
@@ -2333,14 +2426,52 @@ select { cursor: pointer; }
         </div>
       </div>
 
-      <!-- Log -->
-      <div class="dash-log-section">
-        <div class="dash-log-header">Live Log</div>
-        <div class="dash-log" id="pipe-log"><span style="color:var(--text-muted)">Waiting for pipeline run…</span></div>
+      <!-- Pipeline right panel tabs -->
+      <div class="right-tabs" id="pipe-right-tabs">
+        <button class="tab-btn active" data-tab="pipe-log-pane">Live Log</button>
+        <button class="tab-btn" data-tab="pipe-refs-pane">Ref Images</button>
+        <button class="tab-btn" data-tab="pipe-shots-pane">Shot Images</button>
+        <button class="tab-btn" data-tab="pipe-output-pane">Output</button>
       </div>
 
-      <!-- Output -->
-      <div class="dash-output" id="pipe-output-content"></div>
+      <!-- Tab: Live Log -->
+      <div class="tab-pane active" id="pipe-log-pane" style="display:flex;flex-direction:column;">
+        <div class="dash-log" id="pipe-log" style="flex:1;"><span style="color:var(--text-muted)">Waiting for pipeline run…</span></div>
+      </div>
+
+      <!-- Tab: Reference Images -->
+      <div class="tab-pane" id="pipe-refs-pane">
+        <div style="padding:16px;overflow-y:auto;flex:1;">
+          <div class="dash-review-header">
+            <h3>Reference Images</h3>
+            <p>Character portraits and location shots generated in Stage 4</p>
+          </div>
+          <div class="dash-ref-grid" id="dash-ref-grid"></div>
+          <div class="dash-review-actions" id="pipe-continue-area" style="display:none">
+            <button class="dash-run-btn" id="pipe-continue-btn" style="width:auto;padding:10px 28px;">
+              Approve &amp; Continue to Stage 5 &rarr;
+            </button>
+          </div>
+          <div id="pipe-refs-empty" style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px;">Reference images will appear here after Stage 4 completes</div>
+        </div>
+      </div>
+
+      <!-- Tab: Shot Images (per-episode) -->
+      <div class="tab-pane" id="pipe-shots-pane">
+        <div class="dash-review-shots" id="dash-review-shots" style="display:flex;flex:1;">
+          <div class="dash-ep-tabs" id="dash-ep-tabs"></div>
+          <div class="dash-ep-content" id="dash-ep-content">
+            <div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px;">Shot images will appear here as episodes complete in Stage 5</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Output -->
+      <div class="tab-pane" id="pipe-output-pane">
+        <div class="dash-output" id="pipe-output-content" style="padding:16px;">
+          <div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px;">Output files will appear here when pipeline completes</div>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -2472,11 +2603,15 @@ document.querySelectorAll('.stage-tab').forEach(btn => btn.addEventListener('cli
 
 // ── Right-panel tabs ──────────────────────────────────────────────────────────
 document.querySelectorAll('.right-tabs .tab-btn').forEach(btn => btn.addEventListener('click', () => {
-  const panel = btn.closest('.right');
+  const panel = btn.closest('.right, .dash-right');
+  if (!panel) return;
   panel.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  panel.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  panel.querySelectorAll('.tab-pane').forEach(p => { p.classList.remove('active'); p.style.display = ''; });
   btn.classList.add('active');
-  document.getElementById(btn.dataset.tab).classList.add('active');
+  const pane = document.getElementById(btn.dataset.tab);
+  if (pane) pane.classList.add('active');
+  // Track user's manual tab selection in pipeline so auto-switch stops fighting them
+  if (btn.closest('#pipeline-view')) window._userSelectedPipeTab = btn.dataset.tab;
 }));
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
@@ -2769,10 +2904,18 @@ s1RunBtn.addEventListener('click', async () => {
   setStatus(s1StatusEl, 'Running…');
   if (s1Poll) clearInterval(s1Poll);
   const s1FilesEl = document.getElementById('s1-files-content');
+  const s1RowRenderer = name => {
+    const displayName = name.includes('/') ? name.split('/').pop() : name;
+    return `<div class="file-row"><span class="fname">${displayName}</span>
+    <a class="dl-btn" href="/api/stage1/download/${jobId}/${encodeURIComponent(displayName)}" download="${displayName}">Download</a></div>`;
+  };
+  const s1FilesTab = document.querySelector('[data-tab="s1-files-pane"]');
   s1Poll = startPoll(jobId, d => {
     updateStageStats('s1', d);
     if (d.status === 'running' && d.progress && d.progress.total) {
-      renderProgress(s1FilesEl, d.progress, null, null);
+      renderProgress(s1FilesEl, d.progress, d.output_files || [], s1RowRenderer);
+      const fc = (d.output_files || []).length;
+      if (fc > 0 && s1FilesTab) s1FilesTab.innerHTML = `Output Files <span class="tab-badge">${fc}</span>`;
     }
   });
 
@@ -2982,10 +3125,13 @@ s2RunBtn.addEventListener('click', async () => {
   const s2FilesEl = document.getElementById('s2-files-content');
   const s2RowRenderer = name => `<div class="file-row"><span class="fname">${name}</span>
     <a class="dl-btn" href="/api/stage2/download/${jobId}?filename=${encodeURIComponent(name)}" download="${name}">Download</a></div>`;
+  const s2FilesTab = document.querySelector('[data-tab="s2-files-pane"]');
   s2Poll = startPoll(jobId, d => {
     updateStageStats('s2', d);
     if (d.status === 'running' && d.progress && d.progress.total) {
       renderProgress(s2FilesEl, d.progress, d.output_files || [], s2RowRenderer);
+      const fc = (d.output_files || []).length;
+      if (fc > 0 && s2FilesTab) s2FilesTab.innerHTML = `Output Files <span class="tab-badge">${fc}</span>`;
     }
     if (d.progress) {
       const shots = d.progress.shots_done || 0;
@@ -3209,6 +3355,10 @@ s3RunBtn.addEventListener('click', async () => {
   setStatus(s3StatusEl, 'Running…');
   if (s3Poll) clearInterval(s3Poll);
 
+  const s3FilesEl = document.getElementById('s3-files-content');
+  const s3RowRenderer = name => `<div class="file-row"><span class="fname">${name}</span>
+    <a class="dl-btn" href="/api/stage3/download/${s3JobId}?filename=${encodeURIComponent(name)}" download="${name}">Download</a></div>`;
+  const s3FilesTab = document.querySelector('[data-tab="s3-files-pane"]');
   s3Poll = startPoll(jobId, d => {
     if (d.tokens) updateTokenBar(d.tokens);
     updateStageStats('s3', d);
@@ -3216,6 +3366,9 @@ s3RunBtn.addEventListener('click', async () => {
       const p = d.progress;
       const pct = p.total > 0 ? Math.round(p.completed / p.total * 100) : 0;
       setStatus(s3StatusEl, `${p.stage || ''} — ${p.completed}/${p.total} (${pct}%)`);
+      renderProgress(s3FilesEl, d.progress, d.output_files || [], s3RowRenderer);
+      const fc = (d.output_files || []).length;
+      if (fc > 0 && s3FilesTab) s3FilesTab.innerHTML = `Output Files <span class="tab-badge">${fc}</span>`;
     }
   });
 
@@ -3304,6 +3457,8 @@ s4RunBtn.addEventListener('click', async () => {
   setStatus(s4StatusEl, 'Running…');
   if (s4Poll) clearInterval(s4Poll);
 
+  let _s4LastPreviewCount = 0;
+  const s4PreviewTab = document.querySelector('[data-tab="s4-preview-pane"]');
   s4Poll = startPoll(jobId, d => {
     updateTokenBarImages(d.tokens);
     updateStageStats('s4', d);
@@ -3311,6 +3466,23 @@ s4RunBtn.addEventListener('click', async () => {
       const p = d.progress;
       const pct = p.total > 0 ? Math.round(p.completed / p.total * 100) : 0;
       setStatus(s4StatusEl, `${p.completed}/${p.total} images (${pct}%)`);
+      if (p.completed > _s4LastPreviewCount) {
+        _s4LastPreviewCount = p.completed;
+        fetch(`/api/stage4/shots/${jobId}`).then(r => r.json()).then(items => {
+          if (!Array.isArray(items) || !items.length) return;
+          const ts = Date.now();
+          let html = '';
+          items.forEach(s => {
+            if (s.has_image) {
+              html += `<div class="preview-card"><img src="${s.preview_url}?t=${ts}" loading="lazy"><div class="pv-bar"><span class="pv-num">${s.num}</span><span class="pv-line">${s.name}</span></div></div>`;
+            } else {
+              html += `<div class="preview-card"><div class="pv-fail">Generating...</div><div class="pv-bar"><span class="pv-num">${s.num}</span><span class="pv-line">${s.name}</span></div></div>`;
+            }
+          });
+          if (s4PreviewGrid) s4PreviewGrid.innerHTML = html;
+        }).catch(() => {});
+        if (s4PreviewTab) s4PreviewTab.innerHTML = `Image Preview <span class="tab-badge">${p.completed}</span>`;
+      }
     }
   });
 
@@ -3514,14 +3686,36 @@ s5RunBtn.addEventListener('click', async () => {
   if (s5Poll) clearInterval(s5Poll);
   const s5FilesEl = document.getElementById('s5-files-content');
 
+  const s5OutputTab = document.querySelector('[data-tab="s5-files-pane"]');
+  const s5PreviewTab = document.querySelector('[data-tab="s5-preview-pane"]');
+  let _s5LastPreviewCount = 0;
   s5Poll = startPoll(jobId, d => {
     updateTokenBarImages(d.tokens);
     updateStageStats('s5', d);
     const files = (d.output_files && d.output_files.length) ? d.output_files : [];
+    if (files.length > 0 && s5OutputTab) s5OutputTab.innerHTML = `Output <span class="tab-badge">${files.length}</span>`;
     let html = '';
     if (d.status === 'running' && d.progress && d.progress.total) {
       const p = d.progress;
       const pct = p.total > 0 ? Math.round(p.completed / p.total * 100) : 0;
+      if (p.completed > _s5LastPreviewCount) {
+        _s5LastPreviewCount = p.completed;
+        const s5PG = document.getElementById('s5-preview-grid');
+        fetch(`/api/stage5/shots/${jobId}`).then(r => r.json()).then(shots => {
+          if (!Array.isArray(shots) || !shots.length) return;
+          const ts = Date.now();
+          let ph = '';
+          shots.forEach(s => {
+            if (s.has_image) {
+              ph += `<div class="preview-card"><img src="${s.preview_url}?t=${ts}" loading="lazy"><div class="pv-bar"><span class="pv-num">${s.num}</span><span class="pv-line">${s.line || ''}</span></div></div>`;
+            } else {
+              ph += `<div class="preview-card"><div class="pv-fail">Generating...</div><div class="pv-bar"><span class="pv-num">${s.num}</span><span class="pv-line">${s.line || ''}</span></div></div>`;
+            }
+          });
+          if (s5PG) s5PG.innerHTML = ph;
+        }).catch(() => {});
+        if (s5PreviewTab) s5PreviewTab.innerHTML = `Image Preview <span class="tab-badge">${p.completed}</span>`;
+      }
       html += `<div class="progress-box">
         <div class="progress-row">
           <span class="progress-label">${p.completed}/${p.total} shots</span>
@@ -3781,9 +3975,11 @@ s6RunBtn.addEventListener('click', async () => {
   const s6FilesEl = document.getElementById('s6-files-content');
 
   let s6ShownFiles = [];
+  const s6OutputTab = document.querySelector('[data-tab="s6-files-pane"]');
   s6Poll = startPoll(jobId, d => {
     updateStageStats('s6', d);
     const files = (d.output_files && d.output_files.length) ? d.output_files : [];
+    if (files.length > 0 && s6OutputTab) s6OutputTab.innerHTML = `Output Files <span class="tab-badge">${files.length}</span>`;
     let html = '';
     if (files.length > 0) {
       s6ShownFiles = [...files];
@@ -3887,8 +4083,15 @@ s6RunBtn.addEventListener('click', async () => {
     const tok = sd.tokens || {};
     document.getElementById('dash-tokens').textContent = ((tok.input||0) + (tok.output||0)).toLocaleString();
 
-    // Cost
-    document.getElementById('dash-cost').textContent = '$' + (sd.total_cost || 0).toFixed(2);
+    // Cost — sum file_tokens costs + live LLM estimate for in-progress work
+    let cost = sd.total_cost || 0;
+    if (cost === 0 && tok.input > 0) {
+      cost = (tok.input * LLM_INPUT_COST + tok.output * LLM_OUTPUT_COST) / 1000000;
+    }
+    // Add image costs from completed file_tokens
+    const ftImgCost = (sd.file_tokens || []).filter(ft => ft.images).reduce((s, ft) => s + (ft.cost || 0), 0);
+    if (ftImgCost > 0 && cost < ftImgCost) cost += ftImgCost;
+    document.getElementById('dash-cost').textContent = '$' + cost.toFixed(2);
 
     // Timeline — 5 cards, stage3+4 maps to both card 3 and card 4
     const stageOrder = ['stage1', 'stage2', 'stage3', 'stage4', 'stage5'];
@@ -3899,6 +4102,7 @@ s6RunBtn.addEventListener('click', async () => {
     const ps = sd.pipeline_stage || '';
     let currentIdx = stageOrder.indexOf(ps);
     if (ps === 'stage3+4') currentIdx = 2; // both 3 and 4 active
+    if (ps === 'review_refs') currentIdx = 4; // stages 1-4 done, stage 5 waiting for review
 
     tlIds.forEach((id, i) => {
       const node = document.getElementById(id);
@@ -3917,7 +4121,8 @@ s6RunBtn.addEventListener('click', async () => {
         node.classList.add('done'); statusEl.textContent = 'Done';
         if (fillEl) fillEl.style.width = '100%';
       } else if (i === currentIdx) {
-        node.classList.add('active'); statusEl.textContent = 'Running...';
+        node.classList.add('active');
+        statusEl.textContent = (ps === 'review_refs' && i === 4) ? 'Review' : 'Running...';
         const p = sd.progress || {};
         if (fillEl) fillEl.style.width = (p.total > 0 ? (p.completed / p.total * 100) : 10) + '%';
       } else {
@@ -3954,9 +4159,11 @@ s6RunBtn.addEventListener('click', async () => {
     pipeRunBtn.childNodes[pipeRunBtn.childNodes.length - 1].textContent = ' Running...';
     setStatus(pipeStatusEl, 'Starting pipeline...');
 
-    // Clear log + output
+    // Clear log + output, reset tab selection tracking for new run
     if (pipeLogEl) pipeLogEl.innerHTML = '';
     if (pipeOutputEl) pipeOutputEl.innerHTML = '';
+    window._userSelectedPipeTab = null;
+    _lastAutoTab = '';
 
     pipeStartTime.value = Date.now();
     if (pipeTimerInterval) clearInterval(pipeTimerInterval);
@@ -3984,6 +4191,7 @@ s6RunBtn.addEventListener('click', async () => {
         return;
       }
       const jobId = d.job_id;
+      window._pipeJobId = jobId;
 
       pipeES = new EventSource('/api/stream/' + jobId);
       pipeES.onmessage = e => { logLine(pipeLogEl, e.data); };
@@ -3994,6 +4202,8 @@ s6RunBtn.addEventListener('click', async () => {
           updateDashTimeline(sd);
           setStatus(pipeStatusEl, 'Running: ' + sd.pipeline_stage);
         }
+        // Image review panels
+        if (window._pipelineReviewUpdate) window._pipelineReviewUpdate(sd);
         if (sd.status === 'done' || sd.status === 'failed') {
           if (pipePollId) { clearInterval(pipePollId); pipePollId = null; }
           if (pipeTimerInterval) { clearInterval(pipeTimerInterval); pipeTimerInterval = null; }
@@ -4159,15 +4369,276 @@ function updateStageStats(prefix, sd) {
   }
 
   const tok = sd.tokens || {};
+  const isImageStage = (prefix === 's4' || prefix === 's5');
   const tokEl = document.getElementById(prefix + '-tokens');
-  if (tokEl) tokEl.textContent = ((tok.input||0) + (tok.output||0)).toLocaleString();
+  if (tokEl) {
+    if (isImageStage) tokEl.textContent = (prog.completed || 0) + ' img';
+    else tokEl.textContent = ((tok.input||0) + (tok.output||0)).toLocaleString();
+  }
 
   const costEl = document.getElementById(prefix + '-cost');
   if (costEl) {
-    const cost = sd.total_cost || 0;
+    let cost = sd.total_cost || 0;
+    if (cost === 0) {
+      if (isImageStage) cost = (prog.completed || 0) * 0.02;
+      else if (tok.input > 0) cost = (tok.input * LLM_INPUT_COST + tok.output * LLM_OUTPUT_COST) / 1000000;
+    }
     costEl.textContent = '$' + cost.toFixed(2);
   }
 }
+
+// ── Pipeline image review ────────────────────────────────────────────────────
+(function() {
+  // Continue button
+  const continueBtn = document.getElementById('pipe-continue-btn');
+  if (continueBtn) continueBtn.addEventListener('click', async () => {
+    const jobId = window._pipeJobId;
+    if (!jobId) return;
+    continueBtn.disabled = true;
+    continueBtn.textContent = 'Continuing...';
+    await fetch('/api/pipeline/continue/' + jobId, { method: 'POST' });
+  });
+
+  // Track which episodes we've already rendered
+  const renderedEps = new Set();
+
+  function switchPipeTab(tabId, force) {
+    // Don't auto-switch if user has manually chosen a tab (unless forced)
+    if (!force && window._userSelectedPipeTab && window._userSelectedPipeTab !== tabId) return;
+    const container = document.querySelector('#pipeline-view .dash-right');
+    if (!container) return;
+    container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    container.querySelectorAll('.tab-pane').forEach(p => { p.classList.remove('active'); p.style.display = ''; });
+    const btn = container.querySelector('[data-tab="' + tabId + '"]');
+    const pane = document.getElementById(tabId);
+    if (btn) btn.classList.add('active');
+    if (pane) pane.classList.add('active');
+  }
+
+  let _lastAutoTab = '';
+
+  window._pipelineReviewUpdate = function(sd) {
+    const ps = sd.pipeline_stage;
+    const refsTab = document.querySelector('[data-tab="pipe-refs-pane"]');
+    const shotsTab = document.querySelector('[data-tab="pipe-shots-pane"]');
+
+    // Populate reference images — incremental: only add newly arrived images
+    if (sd.ref_images && sd.ref_images.length) {
+      const grid = document.getElementById('dash-ref-grid');
+      const images = sd.ref_images || [];
+      const emptyMsg = document.getElementById('pipe-refs-empty');
+      const continueArea = document.getElementById('pipe-continue-area');
+      if (grid) {
+        const rendered = new Set([...grid.querySelectorAll('[data-filename]')].map(el => el.dataset.filename));
+        images.forEach(img => {
+          if (rendered.has(img.filename)) return;
+          const card = document.createElement('div');
+          card.className = 'dash-ref-card';
+          card.dataset.filename = img.filename;
+          card.innerHTML = '<img src="/api/pipeline/image/' + window._pipeJobId + '/' + img.filename + '" loading="lazy">'
+                         + '<div class="ref-name">' + img.name.replace('ref_','').replace(/_/g,' ') + '</div>';
+          grid.appendChild(card);
+        });
+        if (emptyMsg && images.length) emptyMsg.style.display = 'none';
+      }
+      if (ps === 'review_refs' && continueArea) continueArea.style.display = 'flex';
+      if (refsTab) refsTab.innerHTML = 'Ref Images <span class="tab-badge">' + images.length + '</span>';
+    }
+
+    // Auto-switch to refs tab on review (once, respects user selection)
+    if (ps === 'review_refs' && _lastAutoTab !== 'refs') {
+      switchPipeTab('pipe-refs-pane');
+      _lastAutoTab = 'refs';
+    }
+
+    // Live shot preview during Stage 5 — stream individual shots as they arrive
+    if (ps === 'stage5' && sd.in_progress_shots && sd.in_progress_shots.length) {
+      const liveShots = sd.in_progress_shots;
+      const tabsEl = document.getElementById('dash-ep-tabs');
+      const contentEl = document.getElementById('dash-ep-content');
+      if (tabsEl && contentEl) {
+        let liveTab = document.getElementById('dash-ep-tab-live');
+        let livePane = document.getElementById('ep-pane-live');
+        if (!liveTab) {
+          contentEl.innerHTML = '';
+          tabsEl.innerHTML = '';
+          liveTab = document.createElement('button');
+          liveTab.id = 'dash-ep-tab-live';
+          liveTab.className = 'dash-ep-tab active';
+          liveTab.textContent = 'Generating…';
+          liveTab.addEventListener('click', () => {
+            tabsEl.querySelectorAll('.dash-ep-tab').forEach(t => t.classList.remove('active'));
+            contentEl.querySelectorAll('.dash-ep-pane').forEach(p => p.classList.remove('active'));
+            liveTab.classList.add('active');
+            if (livePane) livePane.classList.add('active');
+          });
+          tabsEl.appendChild(liveTab);
+          livePane = document.createElement('div');
+          livePane.id = 'ep-pane-live';
+          livePane.className = 'dash-ep-pane active';
+          livePane.innerHTML = '<div class="dash-ep-shot-grid" id="live-shot-grid"></div>';
+          contentEl.appendChild(livePane);
+        }
+        liveTab.textContent = 'Generating… (' + liveShots.length + ')';
+        const grid = document.getElementById('live-shot-grid');
+        if (grid) {
+          const rendered = new Set([...grid.querySelectorAll('[data-shot]')].map(el => el.dataset.shot));
+          liveShots.forEach(shot => {
+            if (rendered.has(shot.filename)) return;
+            const div = document.createElement('div');
+            div.className = 'dash-ep-shot';
+            div.dataset.shot = shot.filename;
+            div.innerHTML = '<img src="/api/pipeline/image/' + window._pipeJobId + '/' + shot.filename + '" loading="lazy">'
+                          + '<div class="shot-label">' + shot.name.replace('shot_', 'Shot ') + '</div>';
+            grid.appendChild(div);
+          });
+        }
+        if (shotsTab) shotsTab.innerHTML = 'Shot Images <span class="tab-badge">' + liveShots.length + '</span>';
+        if (_lastAutoTab !== 'shots') {
+          switchPipeTab('pipe-shots-pane');
+          _lastAutoTab = 'shots';
+        }
+      }
+    }
+
+    // Populate completed episode tabs (replacing live pane when episodes finish)
+    if (ps === 'stage5' || ps === 'complete') {
+      const episodes = sd.completed_episodes || [];
+      const tabsEl = document.getElementById('dash-ep-tabs');
+      const contentEl = document.getElementById('dash-ep-content');
+      if (!tabsEl || !contentEl) return;
+
+      episodes.forEach((ep, i) => {
+        if (renderedEps.has(ep.name)) return;
+        renderedEps.add(ep.name);
+
+        // Remove live-generation pane once first episode completes
+        const liveTab = document.getElementById('dash-ep-tab-live');
+        const livePane = document.getElementById('ep-pane-live');
+        if (liveTab) liveTab.remove();
+        if (livePane) livePane.remove();
+
+        if (tabsEl.children.length === 0) contentEl.innerHTML = '';
+
+        const tab = document.createElement('button');
+        tab.className = 'dash-ep-tab' + (tabsEl.children.length === 0 ? ' active' : '');
+        tab.textContent = ep.name;
+        tab.addEventListener('click', () => {
+          tabsEl.querySelectorAll('.dash-ep-tab').forEach(t => t.classList.remove('active'));
+          contentEl.querySelectorAll('.dash-ep-pane').forEach(p => p.classList.remove('active'));
+          tab.classList.add('active');
+          document.getElementById('ep-pane-' + ep.name.replace(/[^a-zA-Z0-9]/g, '_')).classList.add('active');
+        });
+        tabsEl.appendChild(tab);
+
+        const pane = document.createElement('div');
+        pane.id = 'ep-pane-' + ep.name.replace(/[^a-zA-Z0-9]/g, '_');
+        pane.className = 'dash-ep-pane' + (tabsEl.children.length === 1 ? ' active' : '');
+
+        const shotGridId  = 'shot-grid-' + ep.name.replace(/[^a-zA-Z0-9]/g, '_');
+        const feedbackId  = 'fb-' + ep.name.replace(/[^a-zA-Z0-9]/g, '_');
+        const regenBtnId  = 'regen-btn-' + ep.name.replace(/[^a-zA-Z0-9]/g, '_');
+        const regenStatId = 'regen-stat-' + ep.name.replace(/[^a-zA-Z0-9]/g, '_');
+
+        let html = '<div class="dash-ep-actions">';
+        html += '<a class="dash-ep-dl-btn" id="dl-btn-' + ep.name.replace(/[^a-zA-Z0-9]/g, '_') + '" href="/api/pipeline/download-ep/' + window._pipeJobId + '/' + encodeURIComponent(ep.excel) + '" download="' + ep.excel + '">⬇ Download Excel</a>';
+        html += '<span class="dash-ep-done-badge">✓ Ready</span>';
+        html += '</div>';
+        html += '<div class="dash-ep-shot-grid" id="' + shotGridId + '">';
+        (ep.shots || []).forEach(shot => {
+          html += '<div class="dash-ep-shot" data-shot="' + shot.filename + '"><img src="/api/pipeline/image/' + window._pipeJobId + '/' + shot.filename + '" loading="lazy"><div class="shot-label">' + shot.name.replace('shot_','Shot ') + '</div></div>';
+        });
+        html += '</div>';
+        html += '<div class="dash-ep-feedback">';
+        html += '<textarea id="' + feedbackId + '" placeholder="e.g. Shot 5: hair too dark, Shot 12: wrong background — then click Regenerate"></textarea>';
+        html += '<div style="display:flex;gap:8px;align-items:center;margin-top:6px;">';
+        html += '<button class="dash-ep-regen-btn" id="' + regenBtnId + '">↺ Regenerate</button>';
+        html += '<span class="dash-ep-regen-stat" id="' + regenStatId + '"></span>';
+        html += '</div>';
+        html += '</div>';
+        pane.innerHTML = html;
+        contentEl.appendChild(pane);
+
+        // Wire regen button
+        const regenBtn  = document.getElementById(regenBtnId);
+        const fbTextarea = document.getElementById(feedbackId);
+        const regenStat = document.getElementById(regenStatId);
+        const shotGrid  = document.getElementById(shotGridId);
+
+        regenBtn.addEventListener('click', async () => {
+          const feedback = fbTextarea.value.trim();
+          if (!feedback) { regenStat.textContent = 'Enter feedback first.'; regenStat.style.color = '#f85149'; return; }
+          regenBtn.disabled = true;
+          regenStat.style.color = 'var(--text-muted)';
+          regenStat.textContent = 'Starting…';
+
+          try {
+            const res = await fetch('/api/pipeline/regen-shots', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({ job_id: window._pipeJobId, ep_name: ep.name, feedback }),
+            });
+            const d = await res.json();
+            if (d.error) { regenStat.textContent = d.error; regenStat.style.color = '#f85149'; regenBtn.disabled = false; return; }
+
+            const regenJobId = d.job_id;
+            const shotNums   = d.shots || [];
+            regenStat.textContent = 'Regenerating ' + shotNums.length + ' shot(s)…';
+
+            // Stream log to Live Log pane
+            const regenEs = new EventSource('/api/stream/' + regenJobId);
+            regenEs.onmessage = e => logLine(pipeLogEl, e.data);
+
+            // Poll for completion, then refresh images
+            const regenPoll = setInterval(async () => {
+              try {
+                const sr = await fetch('/api/status/' + regenJobId);
+                const sd = await sr.json();
+                const done = sd.progress?.completed || 0;
+                const total = sd.progress?.total || shotNums.length;
+                regenStat.textContent = 'Regenerating… ' + done + '/' + total;
+                if (sd.status === 'done' || sd.status === 'failed') {
+                  clearInterval(regenPoll);
+                  regenEs.close();
+                  regenBtn.disabled = false;
+                  fbTextarea.value = '';
+                  if (sd.status === 'done') {
+                    regenStat.style.color = '#3fb950';
+                    regenStat.textContent = '✓ Done — ' + shotNums.length + ' shot(s) updated';
+                    // Refresh only regenerated shots with cache-busting
+                    const ts = Date.now();
+                    shotNums.forEach(sn => {
+                      const fname = 'shot_' + sn + '.png';
+                      const shotEl = shotGrid ? shotGrid.querySelector('[data-shot="' + fname + '"]') : null;
+                      if (shotEl) {
+                        const img = shotEl.querySelector('img');
+                        if (img) img.src = '/api/pipeline/image/' + window._pipeJobId + '/' + fname + '?t=' + ts;
+                      }
+                    });
+                  } else {
+                    regenStat.style.color = '#f85149';
+                    regenStat.textContent = 'Regen failed — check Live Log';
+                  }
+                }
+              } catch(_) {}
+            }, 2000);
+          } catch(e) {
+            regenStat.textContent = 'Error: ' + e.message;
+            regenStat.style.color = '#f85149';
+            regenBtn.disabled = false;
+          }
+        });
+      });
+
+      if (episodes.length > 0 && shotsTab) shotsTab.innerHTML = 'Shot Images <span class="tab-badge">' + episodes.length + '</span>';
+
+      if (episodes.length > 0 && _lastAutoTab !== 'shots') {
+        switchPipeTab('pipe-shots-pane');
+        _lastAutoTab = 'shots';
+      }
+    }
+  };
+})();
 
 </script>
 </body>
