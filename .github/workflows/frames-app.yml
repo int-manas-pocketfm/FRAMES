@@ -1,0 +1,278 @@
+name: Build and Deploy FRAMES app
+
+concurrency:
+  group: frames-app-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deploy to"
+        required: true
+        default: 'qa'
+        type: choice
+        options:
+          - 'prod'
+          - 'qa'
+      build_with_cache:
+        description: "Build with cache?"
+        required: true
+        default: 'yes'
+        type: choice
+        options:
+          - 'yes'
+          - 'no'
+      commitId:
+        description: "Commit ID to deploy (default: latest)"
+        required: false
+        default: 'latest'
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  BRANCH_NAME: ${{ github.ref_name }}
+  DEPLOYMENT_PATH: ${{ github.event.inputs.environment == 'prod' && 'overlays/frames/prod/frames-app/deployment-main.yaml' || 'overlays/frames/qa/frames-app/deployment-main.yaml' }}
+
+jobs:
+  check-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event.inputs.commitId != 'latest' && github.event.inputs.commitId != ''
+    outputs:
+      image-exists: ${{ steps.check-image.outputs.exists }}
+      ecr-repo: ${{ steps.set-repo.outputs.ecrRepo }}
+    steps:
+      - name: Determine ECR repository
+        id: set-repo
+        run: |
+          ECR_BASE="${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/frames"
+          ECR_REPO="$ECR_BASE/${{ github.event.inputs.environment }}"
+          echo "ecrRepo=$ECR_REPO" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_IAM_ASSUME_ROLE }}
+          role-session-name: GitHub-Actions-FRAMES-${{ github.run_id }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Check if image exists in ECR
+        id: check-image
+        env:
+          COMMIT_ID: ${{ github.event.inputs.commitId }}
+        run: |
+          REPO_NAME="frames/${{ github.event.inputs.environment }}"
+          if aws ecr batch-get-image --repository-name "$REPO_NAME" \
+            --image-ids imageTag="$COMMIT_ID" \
+            --region ${{ vars.AWS_REGION }} \
+            --query 'images[].imageId' --output text 2>/dev/null | grep -q .; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Image not found in ECR"
+            exit 1
+          fi
+
+  build:
+    runs-on: self-hosted-arc-arm64
+    timeout-minutes: 30
+    if: github.event.inputs.commitId == 'latest' || github.event.inputs.commitId == ''
+    outputs:
+      docker-tag: ${{ steps.set_tag.outputs.dockerTag }}
+      ecr-repo: ${{ steps.set_repo.outputs.ecrRepo }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set Docker Tag
+        id: set_tag
+        run: |
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          DOCKER_TAG="${COMMIT_HASH}-${GITHUB_RUN_NUMBER}"
+          echo "dockerTag=$DOCKER_TAG" >> $GITHUB_ENV
+          echo "dockerTag=$DOCKER_TAG" >> $GITHUB_OUTPUT
+
+      - name: Determine ECR repository
+        id: set_repo
+        run: |
+          ECR_BASE="${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/frames"
+          ECR_REPO="$ECR_BASE/${{ github.event.inputs.environment }}"
+          echo "ECR_REPO=$ECR_REPO" >> $GITHUB_ENV
+          echo "ecrRepo=$ECR_REPO" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_IAM_ASSUME_ROLE }}
+          role-session-name: GitHub-Actions-FRAMES-${{ github.run_id }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and Push (with cache)
+        if: github.event.inputs.build_with_cache == 'yes'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.ECR_REPO }}:${{ env.dockerTag }}
+          cache-from: type=registry,ref=${{ env.ECR_REPO }}:cache
+          cache-to: type=registry,ref=${{ env.ECR_REPO }}:cache,mode=max
+
+      - name: Build and Push (no cache)
+        if: github.event.inputs.build_with_cache == 'no'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.ECR_REPO }}:${{ env.dockerTag }}
+          no-cache: true
+
+      - name: Notify Slack - Build Success
+        if: success()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-message: "✅ FRAMES build successful\nEnvironment: ${{ github.event.inputs.environment }}\nBranch: ${{ env.BRANCH_NAME }}\nCommit: ${{ github.sha }}\nDocker Tag: ${{ env.dockerTag }}"
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+      - name: Notify Slack - Build Failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-message: "❌ FRAMES build failed\nBranch: ${{ env.BRANCH_NAME }}\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+  deploy:
+    needs: [build, check-image]
+    if: |
+      always() &&
+      !cancelled() &&
+      (needs.build.result == 'success' || (needs.check-image.result == 'success' && needs.check-image.outputs.image-exists == 'true'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Set deploy tag
+        id: tag
+        env:
+          COMMIT_ID: ${{ github.event.inputs.commitId }}
+          BUILD_TAG: ${{ needs.build.outputs.docker-tag }}
+          BUILD_REPO: ${{ needs.build.outputs.ecr-repo }}
+          CHECK_REPO: ${{ needs.check-image.outputs.ecr-repo }}
+        run: |
+          if [ -n "$BUILD_TAG" ]; then
+            echo "dockerTag=$BUILD_TAG" >> $GITHUB_OUTPUT
+            echo "ecrRepo=$BUILD_REPO" >> $GITHUB_OUTPUT
+          else
+            printf "dockerTag=%s\n" "$COMMIT_ID" >> $GITHUB_OUTPUT
+            echo "ecrRepo=$CHECK_REPO" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout Infra Repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.INFRA_REPO }}
+          ref: ${{ vars.INFRA_REPO_BRANCH }}
+          token: ${{ secrets.GIT_TOKEN }}
+          path: infra
+
+      - name: Install yq
+        run: |
+          ARCH=$(uname -m)
+          case "$ARCH" in
+            x86_64)
+              YQ_URL="https://github.com/mikefarah/yq/releases/download/v4.44.1/yq_linux_amd64"
+              YQ_SHA256="6dc2d0cd4e0caca5aeffd0d784a48263591080e4a0895abe69f3a76eb50d1ba3"
+              ;;
+            aarch64|arm64)
+              YQ_URL="https://github.com/mikefarah/yq/releases/download/v4.44.1/yq_linux_arm64"
+              YQ_SHA256="8c12fcc10e14774ca6624cc282f092a526568b036fe1192258c3aecbad56d063"
+              ;;
+            *)
+              echo "Unsupported architecture for yq: $ARCH"
+              exit 1
+              ;;
+          esac
+          wget -qO /tmp/yq "$YQ_URL"
+          echo "$YQ_SHA256  /tmp/yq" | sha256sum -c --strict
+          sudo mv /tmp/yq /usr/local/bin/yq
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Update deployment-main.yaml
+        env:
+          NEW_IMAGE: ${{ steps.tag.outputs.ecrRepo }}:${{ steps.tag.outputs.dockerTag }}
+        run: |
+          cd infra
+          DEPLOYMENT_FILE="${{ env.DEPLOYMENT_PATH }}"
+          yq eval -i '(.[] | select(.path == "/spec/template/spec/containers/0/image").value) = env(NEW_IMAGE)' "$DEPLOYMENT_FILE"
+          echo "Updated image to $NEW_IMAGE"
+          git diff
+
+      - name: Verify image updated
+        env:
+          NEW_IMAGE: ${{ steps.tag.outputs.ecrRepo }}:${{ steps.tag.outputs.dockerTag }}
+        run: |
+          cd infra
+          DEPLOYMENT_FILE="${{ env.DEPLOYMENT_PATH }}"
+          CURRENT=$(yq eval '.[] | select(.path == "/spec/template/spec/containers/0/image") | .value' "$DEPLOYMENT_FILE")
+          if [ "$CURRENT" != "$NEW_IMAGE" ]; then
+            echo "::error::Image was not updated. Got '$CURRENT', expected '$NEW_IMAGE'"
+            exit 1
+          fi
+          echo "Verified image: $CURRENT"
+
+      - name: Commit and push
+        env:
+          DOCKER_TAG: ${{ steps.tag.outputs.dockerTag }}
+          ENVIRONMENT: ${{ github.event.inputs.environment }}
+          INFRA_BRANCH: ${{ vars.INFRA_REPO_BRANCH }}
+        run: |
+          cd infra
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "${{ env.DEPLOYMENT_PATH }}"
+          git status
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "chore(frames): update image to ${DOCKER_TAG} in frames-app (${ENVIRONMENT})"
+          git pull --rebase origin "$INFRA_BRANCH"
+          git push origin "$INFRA_BRANCH"
+
+      - name: Notify Slack - Deploy Success
+        if: success()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-message: "✅ FRAMES deployed\nEnvironment: ${{ github.event.inputs.environment }}\nImage tag: ${{ steps.tag.outputs.dockerTag }}"
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+      - name: Notify Slack - Deploy Failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-message: "❌ FRAMES deploy failed\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
