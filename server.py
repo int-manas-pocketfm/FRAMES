@@ -7,17 +7,20 @@ Run:  python server.py
 Open: http://localhost:5000
 """
 
+import io
 import json
 import os
 import queue
 import re
 import shutil
+import sqlite3
 import subprocess
 import sys
 import threading
 import time
 import traceback
 import uuid
+from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -63,8 +66,7 @@ MADEYE_API_KEYS  = [k.strip() for k in _raw_madeye_keys.split(",") if k.strip()]
 if not MADEYE_API_KEYS and MADEYE_API_KEY:
     MADEYE_API_KEYS = [MADEYE_API_KEY]
 
-SUPABASE_URL     = os.environ.get("SUPABASE_URL", "")
-SUPABASE_KEY     = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_ANON_KEY", "")
+DB_PATH          = WORKSPACE / "frames.db"
 
 RATE_LIMIT_WAIT  = 60
 BATCH_SIZE       = 20
@@ -859,23 +861,181 @@ If 2 or more answers are weak — regenerate.
 STAGE2_SYSTEM = f"{PIPELINE_INSTRUCTIONS}\n\n---\n\n{RULEBOOK}"
 
 
-# ── Supabase helpers ─────────────────────────────────────────────────────────
+# ── SQLite library helpers ────────────────────────────────────────────────────
 
-def _supabase(method: str, path: str, data=None, params=None):
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        raise RuntimeError("SUPABASE_URL / SUPABASE_SERVICE_KEY not set in .env")
-    headers = {
-        "apikey":        SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type":  "application/json",
-        "Prefer":        "return=representation",
-    }
-    r = httpx.request(
-        method, f"{SUPABASE_URL}/rest/v1{path}",
-        headers=headers, json=data, params=params, timeout=30,
-    )
-    r.raise_for_status()
-    return r.json() if r.content else []
+@contextmanager
+def _db_conn():
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    try:
+        yield conn
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _db_init():
+    with _db_conn() as conn:
+        conn.executescript("""
+        CREATE TABLE IF NOT EXISTS shows (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            name       TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS stage_files (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            show_id    INTEGER NOT NULL REFERENCES shows(id) ON DELETE CASCADE,
+            stage      TEXT NOT NULL,
+            filename   TEXT NOT NULL,
+            file_data  BLOB NOT NULL,
+            file_size  INTEGER,
+            mime_type  TEXT DEFAULT 'application/octet-stream',
+            created_at TEXT DEFAULT (datetime('now')),
+            UNIQUE(show_id, stage, filename) ON CONFLICT REPLACE
+        );
+        CREATE TABLE IF NOT EXISTS job_history (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            show_name    TEXT,
+            stage        TEXT NOT NULL,
+            status       TEXT NOT NULL,
+            cost_usd     REAL DEFAULT 0,
+            input_tok    INTEGER DEFAULT 0,
+            output_tok   INTEGER DEFAULT 0,
+            duration_sec REAL DEFAULT 0,
+            job_id       TEXT,
+            created_at   TEXT DEFAULT (datetime('now'))
+        );
+        """)
+
+
+_db_init()
+
+
+def _db_get_or_create_show(name: str) -> int:
+    with _db_conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM shows WHERE name = ? COLLATE NOCASE", (name,)
+        ).fetchone()
+        if row:
+            return row["id"]
+        return conn.execute("INSERT INTO shows (name) VALUES (?)", (name,)).lastrowid
+
+
+def _db_mime(filename: str) -> str:
+    return {
+        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".md":   "text/markdown",
+        ".txt":  "text/plain",
+        ".png":  "image/png",
+        ".jpg":  "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".mp4":  "video/mp4",
+        ".mp3":  "audio/mpeg",
+    }.get(Path(filename).suffix.lower(), "application/octet-stream")
+
+
+def _db_autosave(job_id: str, stage: str):
+    """Save all output files for a completed job to SQLite under the show name."""
+    job = jobs.get(job_id)
+    if not job:
+        return
+    show_name = job.get("show_name", "").strip()
+    if not show_name:
+        return
+    job_dir = job["job_dir"]
+    files_to_save = []
+
+    if stage == "stage1":
+        for subdir in ["show level files", "episode details"]:
+            d = job_dir / subdir
+            if d.exists():
+                for p in sorted(d.glob("*.md")):
+                    files_to_save.append((f"{subdir}/{p.name}", p, "stage1"))
+    elif stage == "stage6":
+        for p in sorted(job_dir.rglob("*.mp4")):
+            files_to_save.append((str(p.relative_to(job_dir)), p, "stage6"))
+    elif stage == "pipeline":
+        # Distribute pipeline outputs into their correct per-stage buckets
+        for subdir in ["show level files", "episode details"]:
+            d = job_dir / subdir
+            if d.exists():
+                for p in sorted(d.glob("*.md")):
+                    files_to_save.append((f"{subdir}/{p.name}", p, "stage1"))
+        for p in sorted(job_dir.glob("*_breakdown.xlsx")):
+            files_to_save.append((p.name, p, "stage2"))
+        for p in sorted(job_dir.glob("*_audited.xlsx")):
+            files_to_save.append((p.name, p, "stage3"))
+        img_dir = job_dir / "images"
+        if img_dir.exists():
+            for p in sorted(img_dir.glob("ref_*.png")):
+                files_to_save.append((f"images/{p.name}", p, "stage4"))
+            for p in sorted(img_dir.glob("shot_*.png")):
+                files_to_save.append((f"images/{p.name}", p, "stage5"))
+        # Any remaining output_files not already captured
+        captured = {t[1] for t in files_to_save}
+        for item in job.get("output_files", []):
+            p = item if isinstance(item, Path) else job_dir / item
+            if p.exists() and p.is_file() and p not in captured:
+                files_to_save.append((p.name, p, "pipeline"))
+    else:
+        for item in job.get("output_files", []):
+            p = item if isinstance(item, Path) else job_dir / item
+            if p.exists() and p.is_file():
+                files_to_save.append((p.name, p, stage))
+        if stage in ("stage4", "stage5"):
+            img_dir = job_dir / "images"
+            if img_dir.exists():
+                for p in sorted(img_dir.glob("*.png")):
+                    files_to_save.append((f"images/{p.name}", p, stage))
+
+    if not files_to_save:
+        return
+    try:
+        show_id = _db_get_or_create_show(show_name)
+        with _db_conn() as conn:
+            for fname, fpath, fstage in files_to_save:
+                try:
+                    data = fpath.read_bytes()
+                    conn.execute(
+                        "INSERT OR REPLACE INTO stage_files "
+                        "(show_id, stage, filename, file_data, file_size, mime_type) "
+                        "VALUES (?,?,?,?,?,?)",
+                        (show_id, fstage, fname, data, len(data), _db_mime(fpath.name)),
+                    )
+                except Exception as fe:
+                    print(f"[DB] failed to save {fname}: {fe}")
+        by_stage = {}
+        for _, _, fstage in files_to_save:
+            by_stage[fstage] = by_stage.get(fstage, 0) + 1
+        print(f"[DB] saved {len(files_to_save)} file(s) for '{show_name}': {by_stage}")
+    except Exception as e:
+        print(f"[DB] autosave error for {job_id} stage {stage}: {e}")
+
+
+def _db_save_history(job_id: str, stage: str):
+    """Record a completed job in job_history for the History panel."""
+    job = jobs.get(job_id)
+    if not job:
+        return
+    status   = job.get("status", "unknown")
+    show_name = job.get("show_name", "")
+    tok      = job.get("tokens", {})
+    cost     = sum(ft.get("cost", 0) for ft in job.get("file_tokens", []))
+    if cost == 0 and tok.get("input", 0) > 0:
+        cost = (tok.get("input", 0) * 3 + tok.get("output", 0) * 15) / 1_000_000
+    started  = job.get("progress", {}).get("started_at", time.time())
+    duration = time.time() - started
+    try:
+        with _db_conn() as conn:
+            conn.execute(
+                "INSERT INTO job_history (show_name, stage, status, cost_usd, input_tok, output_tok, duration_sec, job_id) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (show_name, stage, status, round(cost, 4),
+                 tok.get("input", 0), tok.get("output", 0), round(duration, 1), job_id),
+            )
+    except Exception as e:
+        print(f"[History] save error: {e}")
 
 
 def _classify_file_type(filename: str) -> str:
@@ -1359,7 +1519,7 @@ def _run_stage1_core(job_id: str, job_dir: Path, mode: str, workers: int, episod
     scripts_dir = job_dir / "episodic scripts"
     raw_out     = job_dir / "_stage1_out"
     raw_out.mkdir(parents=True, exist_ok=True)
-    show_name   = job_dir.name
+    show_name   = jobs[job_id].get("show_name", "").strip() or job_dir.name
 
     _log(f"\n{'=' * 60}")
     _log("  STAGE 1 — Reference File Generation")
@@ -1396,6 +1556,8 @@ def _run_stage1_core(job_id: str, job_dir: Path, mode: str, workers: int, episod
         _log("\n  -- Episode Detail Files ----------------------")
         generate_all_episode_details(scripts, raw_out, show_name, workers, jobs[job_id]["queue"], job_id)
         _move_completed_files()
+        if _check_pause_cancel(job_id):
+            _log("  -- Job cancelled."); return
 
     if mode in ("full", "show-level"):
         _log("\n  -- Show-Level Files (batched) ----------------")
@@ -1435,11 +1597,13 @@ def run_stage1_pipeline(job_id: str, job_dir: Path, mode: str, workers: int, epi
     try:
         _run_stage1_core(job_id, job_dir, mode, workers, episode)
         jobs[job_id]["status"] = "done"
+        _db_autosave(job_id, "stage1")
     except Exception as e:
         tb = traceback.format_exc()
         _log(f"\n[ERROR] {e}\n{tb}")
         jobs[job_id]["status"] = "failed"
     finally:
+        _db_save_history(job_id, "stage1")
         log_queue.put(None)
 
 
@@ -2291,6 +2455,8 @@ def _run_stage2_core(job_id: str, job_dir: Path, episodes: list, ref_files_globa
             list(pool.map(_s2_episode_task, list(enumerate(episodes, 1))))
     else:
         for i, ep in enumerate(episodes, 1):
+            if _check_pause_cancel(job_id):
+                _log("  -- Job cancelled."); break
             ep_name = ep["name"]
             _log(f"\n  ═══ EPISODE {i}/{len(episodes)}: {ep_name} ═══")
             jobs[job_id]["progress"]["stage"]    = f"Episode {i}/{len(episodes)}: {ep_name}"
@@ -2347,11 +2513,13 @@ def run_stage2_pipeline(job_id: str, job_dir: Path, episodes: list, ref_files_gl
     try:
         _run_stage2_core(job_id, job_dir, episodes, ref_files_global, detail_files)
         jobs[job_id]["status"] = "done"
+        _db_autosave(job_id, "stage2")
     except Exception as e:
         tb = traceback.format_exc()
         _log(f"\n[ERROR] {e}\n{tb}")
         jobs[job_id]["status"] = "failed"
     finally:
+        _db_save_history(job_id, "stage2")
         log_queue.put(None)
 
 
@@ -2816,6 +2984,8 @@ def _run_stage3_batch_core(job_id: str, job_dir: Path, excel_paths: list, script
 
     has_flags = False
     for i, ep in enumerate(excel_paths, 1):
+        if _check_pause_cancel(job_id):
+            _log("  -- Job cancelled."); break
         if n > 1:
             _log(f"\n  ──── File {i}/{n}: {ep.name} ────")
         jobs[job_id]["progress"]["completed"] = i - 1
@@ -2861,11 +3031,14 @@ def run_stage3_batch(job_id: str, job_dir: Path, excel_paths: list, script_text:
     _set_job_context(job_id, log_queue)
     try:
         _run_stage3_batch_core(job_id, job_dir, excel_paths, script_text)
+        if jobs[job_id].get("status") == "done":
+            _db_autosave(job_id, "stage3")
     except Exception as e:
         _log(f"[ERROR] Stage 3 batch failed: {e}")
         import traceback; traceback.print_exc()
         jobs[job_id]["status"] = "failed"
     finally:
+        _db_save_history(job_id, "stage3")
         log_queue.put(None)
 
 
@@ -3142,6 +3315,8 @@ def _run_stage4_core(job_id: str, job_dir: Path, items: list):
     _s4_completed = [0]
 
     def _s4_gen_task(task_tuple):
+        if _check_pause_cancel(job_id):
+            return
         idx, item, prompt = task_tuple
         itype = item["type"]
         name  = item["name"]
@@ -3195,11 +3370,13 @@ def run_stage4_pipeline(job_id: str, job_dir: Path, items: list):
     try:
         _run_stage4_core(job_id, job_dir, items)
         jobs[job_id]["status"] = "done"
+        _db_autosave(job_id, "stage4")
     except Exception as e:
         _log(f"[ERROR] Stage 4 failed: {e}")
         import traceback; traceback.print_exc()
         jobs[job_id]["status"] = "failed"
     finally:
+        _db_save_history(job_id, "stage4")
         log_queue.put(None)
 
 
@@ -3659,6 +3836,8 @@ def _run_stage5_core(job_id: str, job_dir: Path, excel_path: Path, char_dir: Pat
 
     def _s5_gen_task(task_tuple):
         nonlocal generated
+        if _check_pause_cancel(job_id):
+            return
         idx, sn, shot, prompt, ref_imgs, ref_names = task_tuple
         ref_label = f" chars=[{', '.join(ref_names)}]" if ref_names else ""
         img_label = f" refs={len(ref_imgs)}" if ref_imgs else ""
@@ -3725,11 +3904,13 @@ def run_stage5_pipeline(job_id: str, job_dir: Path, excel_path: Path, char_dir: 
     try:
         _run_stage5_core(job_id, job_dir, excel_path, char_dir, loc_dir)
         jobs[job_id]["status"] = "done"
+        _db_autosave(job_id, "stage5")
     except Exception as e:
         tb = traceback.format_exc()
         _log(f"\n[ERROR] {e}\n{tb}")
         jobs[job_id]["status"] = "failed"
     finally:
+        _db_save_history(job_id, "stage5")
         log_queue.put(None)
 
 
@@ -4269,6 +4450,8 @@ def run_stage6_batch(job_id, job_dir, pairs, whisper_model, subs, sub_color="yel
         _log(f"{'=' * 60}")
         outputs = []
         for i, (excel_path, audio_path) in enumerate(pairs):
+            if _check_pause_cancel(job_id):
+                _log("  -- Job cancelled."); break
             pair_dir = excel_path.parent
             _log(f"\n{'~' * 60}")
             _log(f"  Pair {i+1}/{n}: {excel_path.name}  +  {audio_path.name}")
@@ -4284,41 +4467,52 @@ def run_stage6_batch(job_id, job_dir, pairs, whisper_model, subs, sub_color="yel
         for name in outputs: _log(f"    -> {name}")
         _log(f"{'=' * 60}\n")
         jobs[job_id]["status"] = "done"
+        _db_autosave(job_id, "stage6")
     except Exception as e:
         tb = traceback.format_exc()
         _log(f"\n[ERROR] {e}\n{tb}")
         jobs[job_id]["status"] = "failed"
     finally:
+        _db_save_history(job_id, "stage6")
         log_queue.put(None)
 
 
 # ── Pipeline orchestrator ─────────────────────────────────────────────────────
 
-def run_pipeline(job_id: str, job_dir: Path, scripts: list, show_name: str, workers: int):
-    """Run Stage 1 -> 2 -> (3 || 4) -> 5 as an automated pipeline."""
+def run_pipeline(job_id: str, job_dir: Path, scripts: list, show_name: str, workers: int, start_from: str = "stage1"):
+    """Run Stage 1 -> 2 -> (3 || 4) -> 5 as an automated pipeline.
+    start_from: 'stage1' (full), 'stage3' (skip 1+2, load from DB), 'stage5' (skip 1-4, load from DB)
+    """
     log_queue = jobs[job_id]["queue"]
     _set_job_context(job_id, log_queue)
 
     try:
         _log(f"\n{'=' * 60}")
-        _log("  PIPELINE — Automated Stage 1 → 2 → 3+4 → 5")
-        _log(f"  Show: {show_name}  |  Episodes: {len(scripts)}")
+        if start_from == "stage1":
+            _log("  PIPELINE — Automated Stage 1 → 2 → 3+4 → 5")
+        else:
+            _log(f"  PIPELINE RESUME — Starting from {start_from.upper()}")
+        _log(f"  Show: {show_name}")
         _log(f"{'=' * 60}\n")
 
-        jobs[job_id]["progress"]["pipeline_stage"] = "stage1"
         jobs[job_id]["progress"]["started_at"] = time.time()
 
         # ── Stage 1: Reference Files ─────────────────────────────────────────
-        _log("\n  ══ PIPELINE STAGE 1: Reference File Generation ══")
-        scripts_dir = job_dir / "episodic scripts"
-        scripts_dir.mkdir(parents=True, exist_ok=True)
-        for s in scripts:
-            save_name = Path(s["filename"]).stem + ".md"
-            (scripts_dir / save_name).write_text(s["text"], encoding="utf-8")
+        if start_from == "stage1":
+            jobs[job_id]["progress"]["pipeline_stage"] = "stage1"
+            _log("\n  ══ PIPELINE STAGE 1: Reference File Generation ══")
+            scripts_dir = job_dir / "episodic scripts"
+            scripts_dir.mkdir(parents=True, exist_ok=True)
+            for s in scripts:
+                save_name = Path(s["filename"]).stem + ".md"
+                (scripts_dir / save_name).write_text(s["text"], encoding="utf-8")
 
-        _run_stage1_core(job_id, job_dir, "full", workers, None)
+            _run_stage1_core(job_id, job_dir, "full", workers, None)
+            _db_autosave(job_id, "stage1")  # save immediately for resume support
+        else:
+            _log(f"\n  ══ Skipping Stage 1 (loaded from library) ══")
 
-        # Read Stage 1 outputs
+        # Read Stage 1 outputs (may come from DB-loaded files for resume)
         show_files_dir = job_dir / "show level files"
         ep_details_dir = job_dir / "episode details"
 
@@ -4334,22 +4528,33 @@ def run_pipeline(job_id: str, job_dir: Path, scripts: list, show_name: str, work
             for f in sorted(ep_details_dir.glob("*.md")):
                 detail_files.append((f.name, f.read_text(encoding="utf-8")))
 
-        _log(f"  Stage 1 outputs: {len(ref_files_global)} ref files, {len(detail_files)} episode details")
+        if start_from == "stage1":
+            _log(f"  Stage 1 outputs: {len(ref_files_global)} ref files, {len(detail_files)} episode details")
+        if _check_pause_cancel(job_id):
+            jobs[job_id]["status"] = "cancelled"; log_queue.put(None); return
 
         # ── Stage 2: Shot Breakdown ──────────────────────────────────────────
-        jobs[job_id]["progress"]["pipeline_stage"] = "stage2"
-        _log("\n  ══ PIPELINE STAGE 2: Shot Breakdown ══")
-
-        episodes = [{"name": s["name"], "script_text": s["text"]} for s in scripts]
-        _run_stage2_core(job_id, job_dir, episodes, ref_files_global, detail_files, workers=workers)
+        if start_from in ("stage1", "stage2"):
+            jobs[job_id]["progress"]["pipeline_stage"] = "stage2"
+            _log("\n  ══ PIPELINE STAGE 2: Shot Breakdown ══")
+            episodes = [{"name": s["name"], "script_text": s["text"]} for s in scripts]
+            _run_stage2_core(job_id, job_dir, episodes, ref_files_global, detail_files, workers=workers)
+            _db_autosave(job_id, "stage2")  # save immediately for resume support
+        else:
+            _log(f"\n  ══ Skipping Stage 2 (loaded from library) ══")
 
         # Collect Stage 2 Excel outputs
         excel_files = sorted(job_dir.glob("*_breakdown.xlsx"))
         _log(f"  Stage 2 outputs: {len(excel_files)} Excel file(s)")
+        if _check_pause_cancel(job_id):
+            jobs[job_id]["status"] = "cancelled"; log_queue.put(None); return
 
         # ── Stage 3 + Stage 4 in parallel ────────────────────────────────────
-        jobs[job_id]["progress"]["pipeline_stage"] = "stage3+4"
-        _log("\n  ══ PIPELINE STAGES 3+4: Audit + Reference Images (parallel) ══")
+        if start_from != "stage5":
+            jobs[job_id]["progress"]["pipeline_stage"] = "stage3+4"
+            _log("\n  ══ PIPELINE STAGES 3+4: Audit + Reference Images (parallel) ══")
+        else:
+            _log("\n  ══ Skipping Stages 3+4 (loaded from library) ══")
 
         s3_error = [None]
         s4_error = [None]
@@ -4357,6 +4562,9 @@ def run_pipeline(job_id: str, job_dir: Path, scripts: list, show_name: str, work
         def _pipeline_stage3():
             try:
                 _set_job_context(job_id, log_queue)
+                if not scripts:
+                    _log("  [S3] No script text available (resume mode) — skipping audit")
+                    return
                 for ep_excel in excel_files:
                     ep_name = ep_excel.stem.replace("_breakdown", "")
                     script_match = next((s for s in scripts if re.sub(r'[^a-zA-Z0-9_\-]', '_', s["name"]) == ep_name), None)
@@ -4397,17 +4605,20 @@ def run_pipeline(job_id: str, job_dir: Path, scripts: list, show_name: str, work
                 s4_error[0] = e
                 _log(f"  [S4] ERROR: {e}")
 
-        t3 = threading.Thread(target=_pipeline_stage3)
-        t4 = threading.Thread(target=_pipeline_stage4)
-        t3.start()
-        t4.start()
-        t3.join()
-        t4.join()
+        if start_from != "stage5":
+            t3 = threading.Thread(target=_pipeline_stage3)
+            t4 = threading.Thread(target=_pipeline_stage4)
+            t3.start()
+            t4.start()
+            t3.join()
+            t4.join()
 
-        if s3_error[0]:
-            _log(f"  !! Stage 3 failed: {s3_error[0]}")
-        if s4_error[0]:
-            _log(f"  !! Stage 4 failed: {s4_error[0]}")
+            if s3_error[0]:
+                _log(f"  !! Stage 3 failed: {s3_error[0]}")
+            if s4_error[0]:
+                _log(f"  !! Stage 4 failed: {s4_error[0]}")
+        if _check_pause_cancel(job_id):
+            jobs[job_id]["status"] = "cancelled"; log_queue.put(None); return
 
         # ── Pause for reference image review ─────────────────────────────────
         # Collect reference images
@@ -4477,12 +4688,14 @@ def run_pipeline(job_id: str, job_dir: Path, scripts: list, show_name: str, work
         _log(f"{'=' * 60}\n")
 
         jobs[job_id]["status"] = "done"
+        _db_autosave(job_id, "pipeline")
 
     except Exception as e:
         tb = traceback.format_exc()
         _log(f"\n[PIPELINE ERROR] {e}\n{tb}")
         jobs[job_id]["status"] = "failed"
     finally:
+        _db_save_history(job_id, "pipeline")
         log_queue.put(None)
 
 
@@ -4492,15 +4705,29 @@ def _new_job(job_dir: Path) -> tuple:
     job_id    = str(uuid.uuid4())
     log_queue = queue.Queue()
     jobs[job_id] = {
-        "status":      "running",
-        "queue":       log_queue,
-        "job_dir":     job_dir,
-        "tokens":      {"input": 0, "output": 0, "calls": 0},
-        "tokens_lock": threading.Lock(),
-        "output_file": None,
-        "file_tokens": [],
+        "status":        "running",
+        "queue":         log_queue,
+        "job_dir":       job_dir,
+        "tokens":        {"input": 0, "output": 0, "calls": 0},
+        "tokens_lock":   threading.Lock(),
+        "output_file":   None,
+        "file_tokens":   [],
+        "_pause_event":  threading.Event(),   # set = paused
+        "_resume_event": threading.Event(),   # set = resume/cancel signal
+        "_cancelled":    False,
     }
     return job_id, log_queue
+
+
+def _check_pause_cancel(job_id: str) -> bool:
+    """Call at loop checkpoints. Blocks if paused; returns True if cancelled."""
+    job = jobs.get(job_id)
+    if not job:
+        return True
+    if job["_pause_event"].is_set():
+        job["_resume_event"].wait()   # block until resume or cancel
+        job["_resume_event"].clear()
+    return job.get("_cancelled", False)
 
 
 def _collect_stage1_files(job_dir: Path) -> list:
@@ -4557,6 +4784,7 @@ def api_stage1_run():
     log_queue = queue.Queue()
     jobs[job_id] = {
         "status":       "running",
+        "show_name":    request.form.get("show_name", "").strip(),
         "queue":        log_queue,
         "job_dir":      job_dir,
         "tokens":       {"input": 0, "output": 0, "calls": 0},
@@ -4565,6 +4793,9 @@ def api_stage1_run():
         "output_files": [],
         "file_tokens":  [],
         "progress":     {"total": 0, "completed": 0, "stage": "", "started_at": time.time()},
+        "_pause_event":  threading.Event(),
+        "_resume_event": threading.Event(),
+        "_cancelled":    False,
     }
 
     threading.Thread(
@@ -4641,6 +4872,7 @@ def api_stage2_run():
     log_queue = queue.Queue()
     jobs[job_id] = {
         "status":       "running",
+        "show_name":    request.form.get("show_name", "").strip(),
         "queue":        log_queue,
         "job_dir":      job_dir,
         "tokens":       {"input": 0, "output": 0, "calls": 0},
@@ -4649,6 +4881,9 @@ def api_stage2_run():
         "output_files": [],
         "file_tokens":  [],
         "progress":     {"total": len(episodes), "completed": 0, "stage": "Starting", "started_at": time.time()},
+        "_pause_event":  threading.Event(),
+        "_resume_event": threading.Event(),
+        "_cancelled":    False,
     }
 
     threading.Thread(
@@ -4719,13 +4954,17 @@ def api_stage3_run():
 
     log_queue = queue.Queue()
     jobs[job_id] = {
-        "status": "running", "queue": log_queue, "job_dir": job_dir,
+        "status": "running", "show_name": request.form.get("show_name", "").strip(),
+        "queue": log_queue, "job_dir": job_dir,
         "tokens": {"input": 0, "output": 0, "calls": 0},
         "tokens_lock": threading.Lock(),
         "output_file": None, "output_files": [],
         "file_tokens": [],
         "progress": {"total": 0, "completed": 0, "stage": "Starting",
                      "started_at": time.time()},
+        "_pause_event":  threading.Event(),
+        "_resume_event": threading.Event(),
+        "_cancelled":    False,
     }
     threading.Thread(
         target=run_stage3_batch,
@@ -4772,6 +5011,7 @@ def api_stage3_fix(job_id: str):
     job["output_files"] = [output_name]
     job["output_file"] = output_name
     job["status"] = "done"
+    _db_autosave(job_id, "stage3")
 
     return jsonify({
         "status": "done",
@@ -4815,13 +5055,17 @@ def api_stage4_run():
 
     log_queue = queue.Queue()
     jobs[job_id] = {
-        "status": "running", "queue": log_queue, "job_dir": job_dir,
+        "status": "running", "show_name": request.form.get("show_name", "").strip(),
+        "queue": log_queue, "job_dir": job_dir,
         "tokens": {"input": 0, "output": 0, "calls": 0},
         "tokens_lock": threading.Lock(),
         "output_file": None, "output_files": [],
         "file_tokens": [],
         "progress": {"total": 0, "completed": 0, "stage": "Starting",
                      "started_at": time.time()},
+        "_pause_event":  threading.Event(),
+        "_resume_event": threading.Event(),
+        "_cancelled":    False,
     }
     threading.Thread(
         target=run_stage4_pipeline,
@@ -5007,13 +5251,17 @@ def api_stage5_run():
 
     log_queue = queue.Queue()
     jobs[job_id] = {
-        "status": "running", "queue": log_queue, "job_dir": job_dir,
+        "status": "running", "show_name": request.form.get("show_name", "").strip(),
+        "queue": log_queue, "job_dir": job_dir,
         "tokens": {"input": 0, "output": 0, "calls": 0},
         "tokens_lock": threading.Lock(),
         "output_file": None, "output_files": [],
         "file_tokens": [],
         "progress": {"total": 0, "completed": 0, "stage": "Starting",
                      "started_at": time.time()},
+        "_pause_event":  threading.Event(),
+        "_resume_event": threading.Event(),
+        "_cancelled":    False,
     }
     threading.Thread(
         target=run_stage5_pipeline,
@@ -5153,13 +5401,6 @@ def api_stage5_regen():
                 if i < len(shot_nums) - 1:
                     time.sleep(S5_RATE_LIMIT_DELAY)
 
-            excel_path = Path(job.get("s5_excel_path", ""))
-            if excel_path.exists():
-                output_name = job.get("output_file", f"{excel_path.stem}_with_images.xlsx")
-                output_path = job["job_dir"] / output_name
-                _s5_write_output_excel(shots, excel_path, output_path, job_dir)
-                _log(f"  ok  Excel updated: {output_name}")
-
             tok = jobs[regen_job_id]["tokens"]
             regen_cost = regen_count * S5_COST_PER_IMAGE
             _log(f"\n{'=' * 60}")
@@ -5178,6 +5419,29 @@ def api_stage5_regen():
 
     threading.Thread(target=_run_regen, daemon=True).start()
     return jsonify({"job_id": regen_job_id, "shots": sorted(shot_nums)})
+
+
+@app.route("/api/stage5/export", methods=["POST"])
+def api_stage5_export():
+    body = request.get_json(force=True) or {}
+    job_id = body.get("job_id", "")
+    if not job_id or job_id not in jobs:
+        return jsonify({"error": "Job not found"}), 404
+    job = jobs[job_id]
+    shots = job.get("s5_shots", [])
+    if not shots:
+        return jsonify({"error": "No shot data — run Stage 5 first"}), 400
+    excel_path = Path(job.get("s5_excel_path", ""))
+    if not excel_path.exists():
+        return jsonify({"error": "Original Excel not found"}), 404
+    output_name = f"{excel_path.stem}_with_images.xlsx"
+    output_path = job["job_dir"] / output_name
+    _s5_write_output_excel(shots, excel_path, output_path, job["job_dir"])
+    job["output_file"] = output_name
+    job.setdefault("output_files", [])
+    if output_name not in job["output_files"]:
+        job["output_files"].append(output_name)
+    return jsonify({"filename": output_name})
 
 
 @app.route("/api/stage5/resume", methods=["POST"])
@@ -5347,6 +5611,7 @@ def api_pipeline_run():
     log_queue = queue.Queue()
     jobs[job_id] = {
         "status": "running",
+        "show_name": show_name,
         "queue": log_queue,
         "job_type": "pipeline",
         "job_dir": job_dir,
@@ -5362,6 +5627,9 @@ def api_pipeline_run():
             "stage": "Initializing pipeline",
             "started_at": time.time(),
         },
+        "_pause_event":  threading.Event(),
+        "_resume_event": threading.Event(),
+        "_cancelled":    False,
     }
 
     threading.Thread(
@@ -5467,13 +5735,17 @@ def api_stage6_run():
     total = steps_per * len(pairs)
     log_queue = queue.Queue()
     jobs[job_id] = {
-        "status": "running", "queue": log_queue, "job_dir": job_dir,
+        "status": "running", "show_name": request.form.get("show_name", "").strip(),
+        "queue": log_queue, "job_dir": job_dir,
         "tokens": {"input": 0, "output": 0, "calls": 0},
         "tokens_lock": threading.Lock(),
         "output_file": None, "output_files": [],
         "file_tokens": [],
         "progress": {"total": total, "completed": 0, "stage": "Starting",
                      "started_at": time.time(), "pair_count": len(pairs)},
+        "_pause_event":  threading.Event(),
+        "_resume_event": threading.Event(),
+        "_cancelled":    False,
     }
     threading.Thread(
         target=run_stage6_batch,
@@ -5502,65 +5774,317 @@ def api_stage6_download(job_id: str):
         return jsonify({"error": "invalid filename"}), 400
     return send_file(str(path), as_attachment=True, download_name=filename)
 
-# Database ──
+# Database (SQLite Library) ──
 
 @app.route("/api/db/shows")
 def api_db_shows():
     try:
-        shows = _supabase("GET", "/shows", params={
-            "select": "id,name,created_at",
-            "order":  "created_at.desc",
-        })
-        return jsonify(shows)
+        with _db_conn() as conn:
+            rows = conn.execute(
+                "SELECT s.id, s.name, s.created_at, "
+                "COUNT(sf.id) as file_count, COUNT(DISTINCT sf.stage) as stage_count "
+                "FROM shows s LEFT JOIN stage_files sf ON sf.show_id = s.id "
+                "GROUP BY s.id ORDER BY s.created_at DESC"
+            ).fetchall()
+        return jsonify([dict(r) for r in rows])
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/db/shows/<show_id>/files")
-def api_db_show_files(show_id: str):
+@app.route("/api/db/shows/<int:show_id>/stages")
+def api_db_show_stages(show_id: int):
     try:
-        files = _supabase("GET", "/show_files", params={
-            "select":  "id,file_type,filename,content,created_at",
-            "show_id": f"eq.{show_id}",
-            "order":   "file_type.asc,created_at.asc",
-        })
-        return jsonify(files)
+        with _db_conn() as conn:
+            rows = conn.execute(
+                "SELECT stage, COUNT(*) as file_count, SUM(file_size) as total_size, MAX(created_at) as updated_at "
+                "FROM stage_files WHERE show_id=? GROUP BY stage ORDER BY stage",
+                (show_id,)
+            ).fetchall()
+        return jsonify([dict(r) for r in rows])
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/db/save", methods=["POST"])
-def api_db_save():
-    body      = request.get_json(force=True) or {}
-    job_id    = body.get("job_id", "")
-    show_name = body.get("show_name", "").strip()
+@app.route("/api/db/shows/<int:show_id>/files")
+def api_db_show_files(show_id: int):
+    stage = request.args.get("stage", "")
+    try:
+        with _db_conn() as conn:
+            if stage:
+                rows = conn.execute(
+                    "SELECT id, stage, filename, file_size, mime_type, created_at "
+                    "FROM stage_files WHERE show_id=? AND stage=? ORDER BY filename",
+                    (show_id, stage)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT id, stage, filename, file_size, mime_type, created_at "
+                    "FROM stage_files WHERE show_id=? ORDER BY stage, filename",
+                    (show_id,)
+                ).fetchall()
+        return jsonify([dict(r) for r in rows])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/db/file/<int:file_id>")
+def api_db_file_download(file_id: int):
+    try:
+        with _db_conn() as conn:
+            row = conn.execute(
+                "SELECT filename, file_data, mime_type FROM stage_files WHERE id=?",
+                (file_id,)
+            ).fetchone()
+        if not row:
+            return "Not found", 404
+        return send_file(
+            io.BytesIO(bytes(row["file_data"])),
+            mimetype=row["mime_type"],
+            as_attachment=True,
+            download_name=Path(row["filename"]).name,
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/db/shows/<int:show_id>/stage1-refs")
+def api_db_stage1_refs(show_id: int):
+    """Return Stage 1 text files with decoded content — used by Stage 2 From Database mode."""
+    try:
+        with _db_conn() as conn:
+            rows = conn.execute(
+                "SELECT id, filename, file_data FROM stage_files "
+                "WHERE show_id=? AND stage='stage1' ORDER BY filename",
+                (show_id,)
+            ).fetchall()
+        result = []
+        for row in rows:
+            name = Path(row["filename"]).name
+            try:
+                content = bytes(row["file_data"]).decode("utf-8")
+            except Exception:
+                content = ""
+            result.append({
+                "id":        row["id"],
+                "filename":  name,
+                "file_type": _classify_file_type(name),
+                "content":   content,
+            })
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/db/upload", methods=["POST"])
+def api_db_upload():
+    """Manually upload files to a show/stage in the library."""
+    show_name = request.form.get("show_name", "").strip()
+    stage     = request.form.get("stage", "").strip()
+    files     = [f for f in request.files.getlist("files") if f.filename]
+    if not show_name:
+        return jsonify({"error": "show_name is required"}), 400
+    if not stage:
+        return jsonify({"error": "stage is required"}), 400
+    if not files:
+        return jsonify({"error": "No files uploaded"}), 400
+    try:
+        show_id = _db_get_or_create_show(show_name)
+        with _db_conn() as conn:
+            for f in files:
+                data  = f.read()
+                fname = Path(f.filename).name
+                conn.execute(
+                    "INSERT OR REPLACE INTO stage_files "
+                    "(show_id, stage, filename, file_data, file_size, mime_type) VALUES (?,?,?,?,?,?)",
+                    (show_id, stage, fname, data, len(data), _db_mime(fname)),
+                )
+        return jsonify({"saved": len(files), "show_id": show_id, "show_name": show_name})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/db/shows/<int:show_id>", methods=["DELETE"])
+def api_db_delete_show(show_id: int):
+    try:
+        with _db_conn() as conn:
+            conn.execute("DELETE FROM shows WHERE id=?", (show_id,))
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/db/files/<int:file_id>", methods=["DELETE"])
+def api_db_delete_file(file_id: int):
+    try:
+        with _db_conn() as conn:
+            row = conn.execute("SELECT filename FROM stage_files WHERE id=?", (file_id,)).fetchone()
+            if not row:
+                return jsonify({"error": "not found"}), 404
+            conn.execute("DELETE FROM stage_files WHERE id=?", (file_id,))
+        return jsonify({"ok": True, "filename": row["filename"]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/db/shows/<int:show_id>/files/zip")
+def api_db_show_zip(show_id: int):
+    """Download all files for a show/stage as a ZIP archive."""
+    import zipfile, io as _io
+    stage = request.args.get("stage", "")
+    try:
+        with _db_conn() as conn:
+            show_row = conn.execute("SELECT name FROM shows WHERE id=?", (show_id,)).fetchone()
+            if not show_row:
+                return jsonify({"error": "show not found"}), 404
+            show_name = show_row["name"]
+            if stage:
+                rows = conn.execute(
+                    "SELECT filename, file_data FROM stage_files WHERE show_id=? AND stage=?",
+                    (show_id, stage)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT stage, filename, file_data FROM stage_files WHERE show_id=?",
+                    (show_id,)
+                ).fetchall()
+        buf = _io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for row in rows:
+                if stage:
+                    arc_name = row["filename"]
+                else:
+                    arc_name = f"{row['stage']}/{row['filename']}"
+                zf.writestr(arc_name, bytes(row["file_data"]))
+        buf.seek(0)
+        safe = re.sub(r'[^a-zA-Z0-9_\-]', '_', show_name)
+        zip_name = f"{safe}_{stage or 'all'}.zip"
+        return Response(buf.read(), mimetype="application/zip",
+                        headers={"Content-Disposition": f"attachment; filename={zip_name}"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/history")
+def api_history():
+    """Return the 60 most recent job runs for the History panel."""
+    try:
+        with _db_conn() as conn:
+            rows = conn.execute(
+                "SELECT id, show_name, stage, status, cost_usd, input_tok, output_tok, "
+                "duration_sec, job_id, created_at FROM job_history ORDER BY created_at DESC LIMIT 60"
+            ).fetchall()
+        return jsonify({"history": [dict(r) for r in rows]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/estimate", methods=["POST"])
+def api_estimate():
+    """Rough cost estimate before a pipeline run."""
+    data = request.get_json(force=True) or {}
+    char_counts = data.get("char_counts", [])   # list of ints, one per episode
+    stages = set(data.get("stages", [1, 2, 3, 4, 5]))
+    n_eps = len(char_counts) or 1
+
+    estimates = {}
+    total_shots = 0
+    for chars in char_counts:
+        tok = chars / 4
+        shots = max(20, min(200, chars // 200))
+        total_shots += shots
+        if 1 in stages:
+            estimates["stage1"] = estimates.get("stage1", 0) + (tok * 1.5 * 3 + 3000 * 15) / 1_000_000
+        if 2 in stages:
+            estimates["stage2"] = estimates.get("stage2", 0) + (tok * 2 * 3 + tok * 0.7 * 15) / 1_000_000
+        if 3 in stages:
+            estimates["stage3"] = estimates.get("stage3", 0) + (tok * 2 * 3 + tok * 0.4 * 15) / 1_000_000
+    if 4 in stages:
+        estimates["stage4"] = n_eps * 20 * 0.02
+    if 5 in stages:
+        estimates["stage5"] = total_shots * 0.02
+
+    total = sum(estimates.values())
+    return jsonify({"estimates": {k: round(v, 2) for k, v in estimates.items()}, "total": round(total, 2), "total_shots": total_shots})
+
+
+@app.route("/api/pipeline/resume", methods=["POST"])
+def api_pipeline_resume():
+    """Resume a pipeline from stage3 or stage5, loading prior outputs from the library."""
+    data = request.get_json(force=True) or {}
+    show_name  = data.get("show_name", "").strip()
+    start_from = data.get("start_from", "stage3")
+    workers    = int(data.get("workers", 3))
 
     if not show_name:
-        return jsonify({"error": "Show name required"}), 400
-    if job_id not in jobs:
-        return jsonify({"error": "Job not found — job may have expired"}), 404
+        return jsonify({"error": "show_name required"}), 400
+    if start_from not in ("stage3", "stage5"):
+        return jsonify({"error": "start_from must be stage3 or stage5"}), 400
 
-    job_dir = jobs[job_id]["job_dir"]
-    try:
-        result  = _supabase("POST", "/shows", {"name": show_name})
-        show_id = result[0]["id"]
+    with _db_conn() as conn:
+        show = conn.execute("SELECT id FROM shows WHERE name=? COLLATE NOCASE", (show_name,)).fetchone()
+    if not show:
+        return jsonify({"error": f"Show '{show_name}' not found in library"}), 404
+    show_id = show["id"]
 
-        saved = 0
-        for subfolder in ["show level files", "episode details"]:
-            d = job_dir / subfolder
-            if d.exists():
-                for f in sorted(d.glob("*.md")):
-                    _supabase("POST", "/show_files", {
-                        "show_id":   show_id,
-                        "file_type": _classify_file_type(f.name),
-                        "filename":  f.name,
-                        "content":   f.read_text(encoding="utf-8"),
-                    })
-                    saved += 1
+    job_id  = str(uuid.uuid4())
+    job_dir = WORKSPACE / f"pipeline_{job_id}"
+    job_dir.mkdir(parents=True, exist_ok=True)
 
-        return jsonify({"show_id": show_id, "show_name": show_name, "files_saved": saved})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    # Stages needed in job_dir for the resume point
+    if start_from == "stage3":
+        needed = ("stage1", "stage2")
+    else:  # stage5
+        needed = ("stage1", "stage2", "stage3", "stage4")
+
+    with _db_conn() as conn:
+        ph = ",".join("?" * len(needed))
+        rows = conn.execute(
+            f"SELECT stage, filename, file_data FROM stage_files WHERE show_id=? AND stage IN ({ph})",
+            (show_id, *needed)
+        ).fetchall()
+
+    for row in rows:
+        stage, fname, raw = row["stage"], row["filename"], row["file_data"]
+        if stage == "stage1":
+            target = job_dir / fname        # e.g. "show level files/tone_bible.md"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(bytes(raw))
+        elif stage in ("stage2", "stage3"):
+            (job_dir / Path(fname).name).write_bytes(bytes(raw))
+        elif stage == "stage4":
+            img_dir = job_dir / "images"
+            img_dir.mkdir(exist_ok=True)
+            (img_dir / Path(fname).name).write_bytes(bytes(raw))
+
+    log_queue = queue.Queue()
+    jobs[job_id] = {
+        "status": "running",
+        "show_name": show_name,
+        "queue": log_queue,
+        "job_type": "pipeline",
+        "job_dir": job_dir,
+        "tokens": {"input": 0, "output": 0, "calls": 0},
+        "tokens_lock": threading.Lock(),
+        "output_file": None,
+        "output_files": [],
+        "file_tokens": [],
+        "progress": {
+            "pipeline_stage": start_from,
+            "total": 5,
+            "completed": 0,
+            "stage": f"Resuming from {start_from}",
+            "started_at": time.time(),
+        },
+        "_pause_event":  threading.Event(),
+        "_resume_event": threading.Event(),
+        "_cancelled":    False,
+    }
+    threading.Thread(
+        target=run_pipeline,
+        args=(job_id, job_dir, [], show_name, workers, start_from),
+        daemon=True,
+    ).start()
+    return jsonify({"job_id": job_id})
 
 
 # Shared ──
@@ -5625,6 +6149,37 @@ def api_status(job_id: str):
         resp["completed_episodes"] = job.get("completed_episodes", [])
         resp["in_progress_shots"] = job.get("in_progress_shots", [])
     return jsonify(resp)
+
+
+@app.route("/api/jobs/<job_id>/pause", methods=["POST"])
+def api_job_pause(job_id):
+    job = jobs.get(job_id)
+    if not job: return jsonify({"error": "not found"}), 404
+    job["_pause_event"].set()
+    job["_resume_event"].clear()
+    job["status"] = "paused"
+    return jsonify({"status": "paused"})
+
+
+@app.route("/api/jobs/<job_id>/resume", methods=["POST"])
+def api_job_resume(job_id):
+    job = jobs.get(job_id)
+    if not job: return jsonify({"error": "not found"}), 404
+    job["status"] = "running"
+    job["_pause_event"].clear()
+    job["_resume_event"].set()
+    return jsonify({"status": "running"})
+
+
+@app.route("/api/jobs/<job_id>/cancel", methods=["POST"])
+def api_job_cancel(job_id):
+    job = jobs.get(job_id)
+    if not job: return jsonify({"error": "not found"}), 404
+    job["_cancelled"] = True
+    job["status"] = "cancelled"
+    job["_pause_event"].clear()
+    job["_resume_event"].set()   # unblock any waiting thread
+    return jsonify({"status": "cancelled"})
 
 
 @app.route("/api/pipeline/regen-shots", methods=["POST"])

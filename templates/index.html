@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -20,6 +20,7 @@
   --log-bg: #0d1117;
   --token-bg: #161b22; --token-border: #30363d;
   --neon-opacity: 1;
+  color-scheme: dark;
 }
 
 [data-theme="light"] {
@@ -34,6 +35,7 @@
   --log-bg: #f8f9fb;
   --token-bg: #ffffff; --token-border: #d0d7de;
   --neon-opacity: 0.7;
+  color-scheme: light;
 }
 /* Light mode overrides for all UI components */
 [data-theme="light"] .right { background: #f8f9fb; }
@@ -240,8 +242,8 @@ header span { font-size: 12px; color: var(--text-muted); }
   background: radial-gradient(circle at 30% 60%, rgba(139,92,246,.04) 0%, transparent 50%),
               radial-gradient(circle at 70% 40%, rgba(6,182,212,.04) 0%, transparent 50%);
 }
-.home-content { text-align: center; max-width: 780px; padding: 40px 24px; position: relative; z-index: 1; }
-.home-brand { margin-bottom: 56px; }
+.home-content { text-align: center; max-width: 780px; padding: 24px 24px; position: relative; z-index: 1; }
+.home-brand { margin-bottom: 28px; }
 .home-logo { height: 56px; width: auto; margin-bottom: 20px; filter: drop-shadow(0 0 20px rgba(88,166,255,.3)); }
 .home-title {
   font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
@@ -455,6 +457,9 @@ input:focus, textarea:focus, select:focus {
 }
 textarea { resize: vertical; min-height: 100px; }
 select { cursor: pointer; }
+select option { background: var(--bg-surface); color: var(--text); }
+select option:disabled { color: var(--text-muted); }
+select option:checked, select option:focus { background: var(--accent); color: #fff; }
 
 /* Drop zone */
 .drop-zone {
@@ -987,6 +992,17 @@ select { cursor: pointer; }
 
 /* 6. Micro-interactions */
 .run-btn:active:not(:disabled) { transform: scale(0.97); }
+
+.pause-btn {
+  width: 100%; margin-top: 6px; padding: 9px 12px;
+  background: rgba(245,158,11,.07); border: 1px solid rgba(245,158,11,.35);
+  border-radius: 9px; color: #f59e0b; font-size: 12px;
+  font-weight: 700; cursor: pointer; font-family: inherit;
+  letter-spacing: .02em; transition: background .15s, border-color .15s, box-shadow .15s;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.pause-btn:hover:not(:disabled) { background: rgba(245,158,11,.14); border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.1); }
+.pause-btn:disabled { opacity: .4; cursor: default; }
 
 @keyframes dropPulse { 0%, 100% { border-color: var(--accent); } 50% { border-color: transparent; } }
 .drop-zone.drag-over { animation: dropPulse 1s ease infinite; }
@@ -1684,9 +1700,76 @@ select { cursor: pointer; }
   background: rgba(63,185,80,.1); color: #3fb950; border: 1px solid rgba(63,185,80,.2);
 }
 
+/* ── Splash screen ── */
+#splash {
+  position: fixed; inset: 0; z-index: 99999;
+  background: #0f1117;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+  transition: opacity .8s ease;
+}
+[data-theme="light"] #splash { background: #f5f6f8; }
+#splash.fade-out { opacity: 0; pointer-events: none; }
+#splash-logo-wrap {
+  position: relative; display: flex; align-items: center; justify-content: center;
+}
+#splash-logo-wrap::before {
+  content: ''; position: absolute; inset: -16px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(88,166,255,.4) 0%, rgba(139,92,246,.25) 40%, transparent 70%);
+  filter: blur(14px);
+  animation: logoBreath 3s ease-in-out infinite;
+}
+#splash-logo { height: 72px; width: auto; position: relative; z-index: 1;
+  filter: drop-shadow(0 0 18px rgba(88,166,255,.5));
+  animation: splashLogoIn .9s cubic-bezier(.22,1,.36,1) both;
+}
+#splash-title {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  font-size: 58px; font-weight: 800; letter-spacing: 14px; text-transform: uppercase;
+  background: linear-gradient(135deg, #e2e8f0 0%, #58a6ff 45%, #a78bfa 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  animation: splashTitleIn 1s .15s cubic-bezier(.22,1,.36,1) both;
+}
+[data-theme="light"] #splash-title {
+  background: linear-gradient(135deg, #1f2328 0%, #0969da 45%, #7c3aed 100%);
+  -webkit-background-clip: text; background-clip: text;
+}
+#splash-sub {
+  font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500;
+  letter-spacing: 4px; text-transform: uppercase; color: rgba(139,148,158,.6);
+  animation: splashTitleIn 1s .35s cubic-bezier(.22,1,.36,1) both;
+}
+#splash-bar {
+  width: 120px; height: 2px; border-radius: 2px;
+  background: rgba(88,166,255,.15);
+  overflow: hidden;
+  animation: splashTitleIn 1s .5s cubic-bezier(.22,1,.36,1) both;
+}
+#splash-bar::after {
+  content: ''; display: block; height: 100%;
+  background: linear-gradient(90deg, #58a6ff, #a78bfa);
+  animation: splashBarFill 3.5s .8s cubic-bezier(.4,0,.2,1) forwards;
+  width: 0%;
+}
+@keyframes splashLogoIn { from { opacity:0; transform:scale(.7); } to { opacity:1; transform:scale(1); } }
+@keyframes splashTitleIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+@keyframes splashBarFill { from { width:0%; } to { width:100%; } }
 </style>
 </head>
 <body>
+
+<!-- Splash screen -->
+<div id="splash">
+  <canvas id="splash-constellation" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0"></canvas>
+  <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:20px">
+    <div id="splash-logo-wrap">
+      <img id="splash-logo" src="/static/logo.png" alt="FRAMES">
+    </div>
+    <div id="splash-title">FRAMES</div>
+    <div id="splash-sub">Shot Generation Pipeline</div>
+    <div id="splash-bar"></div>
+  </div>
+</div>
+
 
 <header>
   <div class="hdr-brand">
@@ -1698,8 +1781,14 @@ select { cursor: pointer; }
   <button class="hdr-home-btn" id="hdr-back" style="display:none" onclick="showHome()">
     <span class="hdr-home-icon">&#8962;</span> Home
   </button>
+  <button class="hdr-home-btn" id="hdr-library-btn" style="display:none" onclick="goToLibraryFromHeader()">
+    &#128218; Library
+  </button>
+  <button class="hdr-home-btn" id="hdr-history-btn" style="display:none" onclick="openHistoryPanel()">
+    &#128203; History
+  </button>
   <span style="margin-left:auto;display:flex;align-items:center;gap:12px;">
-    <span style="font-size:12px;color:var(--text-muted)">Argus &middot; <span id="hdr-model">loading...</span></span>
+    <span style="font-size:12px;color:var(--text-muted)"><span id="hdr-model">loading...</span></span>
     <span class="theme-icon" id="theme-icon">&#9790;</span>
     <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode"></button>
   </span>
@@ -1747,6 +1836,58 @@ select { cursor: pointer; }
         </div>
       </div>
     </div>
+    <!-- Library — full-width row below -->
+    <div class="home-card" onclick="enterLibrary()"
+         style="display:flex;flex-direction:row;align-items:center;gap:16px;padding:12px 22px;margin-top:12px;width:100%;box-sizing:border-box;max-width:100%">
+      <div class="home-card-icon-wrap" style="flex-shrink:0;width:36px;height:36px;background:linear-gradient(135deg,rgba(159,122,234,.18),rgba(159,122,234,.06));color:#9f7aea">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      </div>
+      <div style="flex:1;min-width:0">
+        <h2 style="margin:0 0 2px;font-size:14px">Library</h2>
+        <p class="home-card-desc" style="margin:0;font-size:11px">All shows &amp; stages &mdash; browse, download, upload</p>
+      </div>
+      <div style="flex-shrink:0;display:flex;gap:10px;align-items:center">
+        <span style="font-size:10px;color:var(--text-muted)">All Stages</span>
+        <span style="color:var(--border)">·</span>
+        <span style="font-size:10px;color:var(--text-muted)">Download &amp; Upload</span>
+        <span style="color:var(--border)">·</span>
+        <span style="font-size:10px;color:var(--text-muted)">Cross-Stage</span>
+        <span style="margin-left:6px;font-size:16px;color:#9f7aea;opacity:.7">&rarr;</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════ Library Overview ══ -->
+<div id="library-overview" class="home-screen" style="display:none">
+  <div class="home-content" style="max-width:560px">
+    <h2 class="pov-title">Library</h2>
+    <p class="pov-subtitle">Your central file store for all shows and stages</p>
+
+    <div style="display:flex;flex-direction:column;gap:12px;margin:28px 0;text-align:left">
+      <div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px">
+        <span style="font-size:20px;flex-shrink:0;margin-top:1px">📁</span>
+        <div><strong style="color:var(--text)">All Shows</strong><br><span style="font-size:12px;color:var(--text-muted)">Every show you've run through FRAMES is saved here, organised by name.</span></div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px">
+        <span style="font-size:20px;flex-shrink:0;margin-top:1px">📂</span>
+        <div><strong style="color:var(--text)">All Stages</strong><br><span style="font-size:12px;color:var(--text-muted)">Stage 1–6 outputs are stored per show — browse any stage's files in one click.</span></div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px">
+        <span style="font-size:20px;flex-shrink:0;margin-top:1px">⬇</span>
+        <div><strong style="color:var(--text)">Download Anything</strong><br><span style="font-size:12px;color:var(--text-muted)">Download any saved file — Excel breakdowns, reference images, videos — at any time.</span></div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px">
+        <span style="font-size:20px;flex-shrink:0;margin-top:1px">⬆</span>
+        <div><strong style="color:var(--text)">Upload Files</strong><br><span style="font-size:12px;color:var(--text-muted)">Add files manually to any show and stage — no pipeline run required.</span></div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px">
+        <span style="font-size:20px;flex-shrink:0;margin-top:1px">🔗</span>
+        <div><strong style="color:var(--text)">Cross-Stage Integration</strong><br><span style="font-size:12px;color:var(--text-muted)">Load saved files directly into any stage's input — no re-uploading needed.</span></div>
+      </div>
+    </div>
+
+    <button class="pov-continue-btn" onclick="continueToLibrary()">Open Library &rarr;</button>
   </div>
 </div>
 
@@ -1850,6 +1991,10 @@ select { cursor: pointer; }
 
     <div class="panel">
       <div>
+        <span class="fl">Show Name</span>
+        <input type="text" id="s1-show-name" placeholder="e.g. Dark Desires">
+      </div>
+      <div>
         <span class="fl">Episode Scripts</span>
         <div class="drop-zone" id="s1-drop">
           <input type="file" id="s1-file-input" multiple accept=".md,.docx,.txt,.fountain">
@@ -1892,7 +2037,11 @@ select { cursor: pointer; }
         </div>
       </div>
 
+      <div id="s1-cost-est" style="display:none;padding:7px 11px;border-radius:8px;background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.15);font-size:11px;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center">
+        <span>&#128200; LLM cost estimate</span><span id="s1-est-val" style="font-weight:700;color:var(--text)">—</span>
+      </div>
       <button class="run-btn" id="s1-run-btn">&#9654;&nbsp; Run Stage 1</button>
+      <button class="pause-btn" id="s1-pause-btn" style="display:none" data-job="">⏸ Pause</button>
       <div class="status-msg" id="s1-status"></div>
     </div>
 
@@ -1925,10 +2074,15 @@ select { cursor: pointer; }
     <div class="panel">
 
       <div>
+        <span class="fl">Show Name</span>
+        <input type="text" id="s2-show-name" placeholder="e.g. Dark Desires">
+      </div>
+      <div>
         <span class="fl">Script</span>
         <div class="toggle-row">
           <button class="active" id="s2-paste-btn" type="button">Paste text</button>
           <button id="s2-upload-btn" type="button">Upload file</button>
+          <button id="s2-script-db-btn" type="button">From Database</button>
         </div>
         <div id="s2-text-wrap">
           <textarea id="s2-script-text" placeholder="Paste your episode script here&hellip;" rows="5"></textarea>
@@ -1940,6 +2094,10 @@ select { cursor: pointer; }
             <div class="dz-hint">Drag &amp; drop or <b>browse</b> &mdash; multiple OK<br>.md &middot; .txt &middot; .fountain</div>
           </div>
           <div id="s2-file-list" style="margin-top:6px"></div>
+        </div>
+        <div id="s2-script-db-wrap" style="display:none">
+          <select id="s2-script-show-sel"><option value="">— select a show —</option></select>
+          <div id="s2-script-db-files" style="margin-top:6px;font-size:11px;color:var(--text-muted)">Select a show to load its episode scripts.</div>
         </div>
       </div>
 
@@ -1997,7 +2155,11 @@ select { cursor: pointer; }
         </div>
       </div>
 
+      <div id="s2-cost-est" style="display:none;padding:7px 11px;border-radius:8px;background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.15);font-size:11px;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center">
+        <span>&#128200; LLM cost estimate</span><span id="s2-est-val" style="font-weight:700;color:var(--text)">—</span>
+      </div>
       <button class="run-btn" id="s2-run-btn">&#9654;&nbsp; Run Stage 2</button>
+      <button class="pause-btn" id="s2-pause-btn" style="display:none" data-job="">⏸ Pause</button>
       <div class="status-msg" id="s2-status"></div>
       <div id="s2-shot-counter" style="display:none;padding:10px 14px;background:#f0fff4;border:1px solid #9ae6b4;border-radius:8px;text-align:center;">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#276749;margin-bottom:4px;">Shots Generated</div>
@@ -2034,22 +2196,48 @@ select { cursor: pointer; }
   <div class="stage-view" id="stage3-view">
     <div class="panel">
       <div>
+        <span class="fl">Show Name</span>
+        <input type="text" id="s3-show-name" placeholder="e.g. Dark Desires">
+      </div>
+      <div>
         <span class="fl">Shot Breakdown Excel(s)</span>
-        <div class="drop-zone" id="s3-excel-drop">
-          <input type="file" id="s3-excel-input" multiple accept=".xlsx">
-          <div class="dz-icon">📊</div>
-          <div class="dz-hint">Drag &amp; drop or <b>browse</b> &mdash; multiple OK<br>Stage 2 output .xlsx</div>
+        <div class="toggle-row" style="margin-bottom:8px">
+          <button class="active" id="s3-src-upload-btn" type="button">Upload</button>
+          <button id="s3-src-db-btn" type="button">From Database</button>
         </div>
-        <div id="s3-excel-list" style="margin-top:6px"></div>
+        <div id="s3-upload-panel">
+          <div class="drop-zone" id="s3-excel-drop">
+            <input type="file" id="s3-excel-input" multiple accept=".xlsx">
+            <div class="dz-icon">📊</div>
+            <div class="dz-hint">Drag &amp; drop or <b>browse</b> &mdash; multiple OK<br>Stage 2 output .xlsx</div>
+          </div>
+          <div id="s3-excel-list" style="margin-top:6px"></div>
+        </div>
+        <div id="s3-db-panel" style="display:none">
+          <select id="s3-show-sel" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:12px;margin-bottom:8px">
+            <option value="">— select a show —</option>
+          </select>
+          <div id="s3-db-files" style="font-size:11px;color:var(--text-muted)">Select a show to load Stage 2 breakdown files.</div>
+        </div>
       </div>
       <div style="margin-top:10px">
         <span class="fl">Episode Script</span>
-        <div class="drop-zone" id="s3-script-drop">
-          <input type="file" id="s3-script-input" accept=".txt,.md,.docx,.fountain">
-          <div class="dz-icon">📄</div>
-          <div class="dz-hint">Drag &amp; drop or <b>browse</b> &mdash; one script file<br>.txt &middot; .md &middot; .docx &middot; .fountain</div>
+        <div class="toggle-row" style="margin-bottom:8px">
+          <button class="active" id="s3-script-upload-btn" type="button">Upload</button>
+          <button id="s3-script-db-btn" type="button">From Database</button>
         </div>
-        <div id="s3-script-list" style="margin-top:6px"></div>
+        <div id="s3-script-upload-panel">
+          <div class="drop-zone" id="s3-script-drop">
+            <input type="file" id="s3-script-input" accept=".txt,.md,.docx,.fountain">
+            <div class="dz-icon">📄</div>
+            <div class="dz-hint">Drag &amp; drop or <b>browse</b> &mdash; one script file<br>.txt &middot; .md &middot; .docx &middot; .fountain</div>
+          </div>
+          <div id="s3-script-list" style="margin-top:6px"></div>
+        </div>
+        <div id="s3-script-db-panel" style="display:none">
+          <select id="s3-script-show-sel"><option value="">— select a show —</option></select>
+          <div id="s3-script-db-files" style="margin-top:6px;font-size:11px;color:var(--text-muted)">Select a show to load its episode scripts.</div>
+        </div>
       </div>
       <hr class="divider">
       <div style="font-size:11px;color:#8b949e;line-height:1.5">
@@ -2057,7 +2245,11 @@ select { cursor: pointer; }
         Audits Line column against source script &mdash; fixes paraphrased, invented &amp; truncated lines<br>
         Uses Argus (Claude) &middot; Coverage check &middot; Auto-fix &amp; renumber
       </div>
+      <div id="s3-cost-est" style="display:none;padding:7px 11px;border-radius:8px;background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.15);font-size:11px;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center">
+        <span>&#128200; LLM cost estimate</span><span id="s3-est-val" style="font-weight:700;color:var(--text)">—</span>
+      </div>
       <button class="run-btn" id="s3-run-btn">&#9654;&nbsp; Run Stage 3</button>
+      <button class="pause-btn" id="s3-pause-btn" style="display:none" data-job="">⏸ Pause</button>
       <div class="status-msg" id="s3-status"></div>
     </div>
     <div class="right">
@@ -2092,29 +2284,52 @@ select { cursor: pointer; }
   <div class="stage-view" id="stage4-view">
     <div class="panel">
       <div>
-        <span class="fl">Character Canvas</span>
-        <div class="drop-zone" id="s4-char-drop">
-          <input type="file" id="s4-char-input" accept=".md,.docx">
-          <div class="dz-icon">🧑</div>
-          <div class="dz-hint">Drag &amp; drop or <b>browse</b><br>character_canvas .md / .docx from Stage 1</div>
-        </div>
-        <div id="s4-char-list" style="margin-top:6px"></div>
+        <span class="fl">Show Name</span>
+        <input type="text" id="s4-show-name" placeholder="e.g. Dark Desires">
       </div>
       <div>
-        <span class="fl">Location Reference</span>
-        <div class="drop-zone" id="s4-loc-drop">
-          <input type="file" id="s4-loc-input" accept=".md,.docx">
-          <div class="dz-icon">🏞️</div>
-          <div class="dz-hint">Drag &amp; drop or <b>browse</b><br>location_reference .md / .docx from Stage 1</div>
+        <span class="fl">Canvas Files</span>
+        <div class="toggle-row" style="margin-bottom:8px">
+          <button class="active" id="s4-src-upload-btn" type="button">Upload</button>
+          <button id="s4-src-db-btn" type="button">From Database</button>
         </div>
-        <div id="s4-loc-list" style="margin-top:6px"></div>
+        <div id="s4-upload-panel">
+          <div>
+            <span class="fl">Character Canvas</span>
+            <div class="drop-zone" id="s4-char-drop">
+              <input type="file" id="s4-char-input" accept=".md,.docx">
+              <div class="dz-icon">🧑</div>
+              <div class="dz-hint">Drag &amp; drop or <b>browse</b><br>character_canvas .md / .docx from Stage 1</div>
+            </div>
+            <div id="s4-char-list" style="margin-top:6px"></div>
+          </div>
+          <div>
+            <span class="fl">Location Reference</span>
+            <div class="drop-zone" id="s4-loc-drop">
+              <input type="file" id="s4-loc-input" accept=".md,.docx">
+              <div class="dz-icon">🏞️</div>
+              <div class="dz-hint">Drag &amp; drop or <b>browse</b><br>location_reference .md / .docx from Stage 1</div>
+            </div>
+            <div id="s4-loc-list" style="margin-top:6px"></div>
+          </div>
+        </div>
+        <div id="s4-db-panel" style="display:none">
+          <select id="s4-show-sel" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:12px;margin-bottom:8px">
+            <option value="">— select a show —</option>
+          </select>
+          <div id="s4-db-files" style="font-size:11px;color:var(--text-muted)">Select a show to load Stage 1 canvas files.</div>
+        </div>
       </div>
       <hr class="divider">
       <div style="font-size:11px;color:#8b949e;line-height:1.5">
         <strong style="color:#c9d1d9">Gemini Imagen 4 Fast</strong><br>
         $0.02/image &middot; Generates reference images for each character &amp; location
       </div>
+      <div id="s4-cost-est" style="padding:7px 11px;border-radius:8px;background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.15);font-size:11px;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center">
+        <span>&#128200; Image cost estimate</span><span id="s4-est-val" style="font-weight:700;color:var(--text)">~$0.40 <span style="font-weight:400;opacity:.6">(~20 imgs × $0.02)</span></span>
+      </div>
       <button class="run-btn" id="s4-run-btn">&#9654;&nbsp; Run Stage 4</button>
+      <button class="pause-btn" id="s4-pause-btn" style="display:none" data-job="">⏸ Pause</button>
       <div class="status-msg" id="s4-status"></div>
     </div>
     <div class="right">
@@ -2167,31 +2382,50 @@ select { cursor: pointer; }
   <div class="stage-view" id="stage5-view">
     <div class="panel">
       <div>
-        <span class="fl">Shot Breakdown Excel</span>
-        <div class="drop-zone" id="s5-excel-drop">
-          <input type="file" id="s5-excel-input" accept=".xlsx">
-          <div class="dz-icon">📊</div>
-          <div class="dz-hint">Drag &amp; drop or <b>browse</b><br>Stage 2 output .xlsx</div>
-        </div>
-        <div id="s5-excel-list" style="margin-top:6px"></div>
+        <span class="fl">Show Name</span>
+        <input type="text" id="s5-show-name" placeholder="e.g. Dark Desires">
       </div>
       <div>
-        <span class="fl">Character Canvas / Reference Images (optional)</span>
-        <div class="drop-zone" id="s5-char-drop">
-          <input type="file" id="s5-char-input" multiple accept=".xlsx,.png,.jpg,.jpeg,.webp">
-          <div class="dz-icon">🧑</div>
-          <div class="dz-hint">Drag &amp; drop or <b>browse</b><br>Character Canvas .xlsx <i>or</i> image files (e.g. detective_john.png)</div>
+        <span class="fl">Input Files</span>
+        <div class="toggle-row" style="margin-bottom:8px">
+          <button class="active" id="s5-src-upload-btn" type="button">Upload</button>
+          <button id="s5-src-db-btn" type="button">From Database</button>
         </div>
-        <div id="s5-char-list" style="margin-top:6px"></div>
-      </div>
-      <div>
-        <span class="fl">Location Canvas / Reference Images (optional)</span>
-        <div class="drop-zone" id="s5-loc-drop">
-          <input type="file" id="s5-loc-input" multiple accept=".xlsx,.png,.jpg,.jpeg,.webp">
-          <div class="dz-icon">🏞️</div>
-          <div class="dz-hint">Drag &amp; drop or <b>browse</b><br>Location Canvas .xlsx <i>or</i> image files</div>
+        <div id="s5-upload-panel">
+          <div>
+            <span class="fl">Shot Breakdown Excel</span>
+            <div class="drop-zone" id="s5-excel-drop">
+              <input type="file" id="s5-excel-input" accept=".xlsx">
+              <div class="dz-icon">📊</div>
+              <div class="dz-hint">Drag &amp; drop or <b>browse</b><br>Stage 2 output .xlsx</div>
+            </div>
+            <div id="s5-excel-list" style="margin-top:6px"></div>
+          </div>
+          <div>
+            <span class="fl">Character Canvas / Reference Images (optional)</span>
+            <div class="drop-zone" id="s5-char-drop">
+              <input type="file" id="s5-char-input" multiple accept=".xlsx,.png,.jpg,.jpeg,.webp">
+              <div class="dz-icon">🧑</div>
+              <div class="dz-hint">Drag &amp; drop or <b>browse</b><br>Character Canvas .xlsx <i>or</i> image files (e.g. detective_john.png)</div>
+            </div>
+            <div id="s5-char-list" style="margin-top:6px"></div>
+          </div>
+          <div>
+            <span class="fl">Location Canvas / Reference Images (optional)</span>
+            <div class="drop-zone" id="s5-loc-drop">
+              <input type="file" id="s5-loc-input" multiple accept=".xlsx,.png,.jpg,.jpeg,.webp">
+              <div class="dz-icon">🏞️</div>
+              <div class="dz-hint">Drag &amp; drop or <b>browse</b><br>Location Canvas .xlsx <i>or</i> image files</div>
+            </div>
+            <div id="s5-loc-list" style="margin-top:6px"></div>
+          </div>
         </div>
-        <div id="s5-loc-list" style="margin-top:6px"></div>
+        <div id="s5-db-panel" style="display:none">
+          <select id="s5-show-sel" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:12px;margin-bottom:8px">
+            <option value="">— select a show —</option>
+          </select>
+          <div id="s5-db-files" style="font-size:11px;color:var(--text-muted)">Select a show to load breakdown Excel + Stage 4 reference images.</div>
+        </div>
       </div>
       <hr class="divider">
       <div style="font-size:11px;color:#8b949e;line-height:1.5">
@@ -2199,7 +2433,11 @@ select { cursor: pointer; }
         $0.02/image &middot; Free tier: ~2 img/min<br>
         Images saved to Preview_1 column
       </div>
+      <div id="s5-cost-est" style="display:none;padding:7px 11px;border-radius:8px;background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.15);font-size:11px;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center">
+        <span>&#128200; Image cost estimate</span><span id="s5-est-val" style="font-weight:700;color:var(--text)">—</span>
+      </div>
       <button class="run-btn" id="s5-run-btn">&#9654;&nbsp; Run Stage 5</button>
+      <button class="pause-btn" id="s5-pause-btn" style="display:none" data-job="">⏸ Pause</button>
       <div class="status-msg" id="s5-status"></div>
     </div>
     <div class="right">
@@ -2235,6 +2473,7 @@ select { cursor: pointer; }
             <textarea id="s5-feedback" placeholder="e.g. Shot 12: hair should be darker&#10;Shot 45: wrong background, should be indoors&#10;Shot 8, 19: regenerate, faces look wrong" style="min-height:80px;max-height:120px"></textarea>
             <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
               <button class="run-btn" id="s5-regen-btn" style="flex:none;padding:8px 16px;font-size:12px" disabled>&#x1f504; Regenerate</button>
+              <button class="run-btn" id="s5-export-btn" style="flex:none;padding:8px 16px;font-size:12px;background:var(--accent2,#238636)" disabled>Generate Excel</button>
               <span class="status-msg" id="s5-regen-status" style="font-size:12px"></span>
             </div>
           </div>
@@ -2252,13 +2491,29 @@ select { cursor: pointer; }
   <div class="stage-view" id="stage6-view">
     <div class="panel">
       <div>
+        <span class="fl">Show Name</span>
+        <input type="text" id="s6-show-name" placeholder="e.g. Dark Desires">
+      </div>
+      <div>
         <span class="fl">Shot Breakdown Excel(s)</span>
-        <div class="drop-zone" id="s6-excel-drop">
-          <input type="file" id="s6-excel-input" multiple accept=".xlsx">
-          <div class="dz-icon">📊</div>
-          <div class="dz-hint">Drag &amp; drop or <b>browse</b> &mdash; multiple OK<br>.xlsx with image URLs + narration lines</div>
+        <div class="toggle-row" style="margin-bottom:8px">
+          <button class="active" id="s6-src-upload-btn" type="button">Upload</button>
+          <button id="s6-src-db-btn" type="button">From Database</button>
         </div>
-        <div id="s6-excel-list" style="margin-top:6px"></div>
+        <div id="s6-excel-upload-panel">
+          <div class="drop-zone" id="s6-excel-drop">
+            <input type="file" id="s6-excel-input" multiple accept=".xlsx">
+            <div class="dz-icon">📊</div>
+            <div class="dz-hint">Drag &amp; drop or <b>browse</b> &mdash; multiple OK<br>.xlsx with image URLs + narration lines</div>
+          </div>
+          <div id="s6-excel-list" style="margin-top:6px"></div>
+        </div>
+        <div id="s6-excel-db-panel" style="display:none">
+          <select id="s6-show-sel" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:12px;margin-bottom:8px">
+            <option value="">— select a show —</option>
+          </select>
+          <div id="s6-db-files" style="font-size:11px;color:var(--text-muted)">Select a show to load Stage 5 Excel files.</div>
+        </div>
       </div>
       <div>
         <span class="fl">Audio Narration(s)</span>
@@ -2291,7 +2546,11 @@ select { cursor: pointer; }
         <div style="font-size:12px;color:#c9d1d9;padding:6px 0">base.en</div>
         <input type="hidden" id="s6-whisper" value="base.en">
       </div>
+      <div style="padding:7px 11px;border-radius:8px;background:rgba(63,185,80,.06);border:1px solid rgba(63,185,80,.18);font-size:11px;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center">
+        <span>&#128200; Cost estimate</span><span style="font-weight:700;color:#3fb950">Free <span style="font-weight:400;opacity:.6">(local FFmpeg + Whisper)</span></span>
+      </div>
       <button class="run-btn" id="s6-run-btn">&#9654;&nbsp; Run Stage 6</button>
+      <button class="pause-btn" id="s6-pause-btn" style="display:none" data-job="">⏸ Pause</button>
       <div class="status-msg" id="s6-status"></div>
     </div>
     <div class="right">
@@ -2349,10 +2608,52 @@ select { cursor: pointer; }
         <strong>Runs:</strong> Stage 1 &rarr; 2 &rarr; 3+4 &rarr; 5
       </div>
 
+      <!-- Cost estimate card -->
+      <div id="pipe-cost-estimate" style="flex-shrink:0;border-radius:10px;background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.18);overflow:hidden;font-size:11px">
+        <div style="padding:9px 14px;border-bottom:1px solid rgba(59,130,246,.12);display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:700;color:var(--text)">&#128200; Estimated Cost</span>
+          <span id="pipe-est-total" style="font-size:15px;font-weight:800;color:#3fb950">—</span>
+        </div>
+        <div style="padding:8px 14px;display:flex;flex-direction:column;gap:5px;color:var(--text-muted)">
+          <div style="display:flex;justify-content:space-between"><span>S1 &middot; Reference Files</span><span id="pipe-est-s1" style="font-weight:700;color:var(--text)">—</span></div>
+          <div style="display:flex;justify-content:space-between"><span>S2 &middot; Shot Breakdown</span><span id="pipe-est-s2" style="font-weight:700;color:var(--text)">—</span></div>
+          <div style="display:flex;justify-content:space-between"><span>S3 &middot; Script Audit</span><span id="pipe-est-s3" style="font-weight:700;color:var(--text)">—</span></div>
+          <div style="display:flex;justify-content:space-between"><span>S4 &middot; Reference Images</span><span id="pipe-est-s4" style="font-weight:700;color:var(--text)">—</span></div>
+          <div style="display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,.06);padding-top:5px"><span>S5 &middot; Shot Images <span id="pipe-est-shots" style="opacity:.6;font-weight:400"></span></span><span id="pipe-est-s5" style="font-weight:700;color:var(--text)">—</span></div>
+        </div>
+        <div style="padding:0 14px 8px;font-size:10px;color:var(--text-muted);opacity:.55">Rough estimate &middot; actual may vary ±30%</div>
+      </div>
+
+      <!-- Resume section -->
+      <details style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <summary style="padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted);cursor:pointer;background:var(--bg-surface);list-style:none;display:flex;align-items:center;gap:6px">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          Resume pipeline from a previous run
+        </summary>
+        <div style="padding:12px;background:var(--bg1);display:flex;flex-direction:column;gap:8px">
+          <div>
+            <span class="fl" style="font-size:10px">Show Name (must exist in library)</span>
+            <input type="text" id="pipe-resume-show" placeholder="e.g. Unexpectedly Mine" style="width:100%;padding:6px 8px;border-radius:5px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:12px;box-sizing:border-box">
+          </div>
+          <div>
+            <span class="fl" style="font-size:10px">Resume from stage</span>
+            <select id="pipe-resume-stage" style="width:100%;padding:6px 8px;border-radius:5px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:12px">
+              <option value="stage3">Stage 3 (skip stages 1+2, load from library)</option>
+              <option value="stage5">Stage 5 (skip stages 1-4, load from library)</option>
+            </select>
+          </div>
+          <button id="pipe-resume-btn" style="padding:7px 14px;background:rgba(88,166,255,.12);color:var(--accent);border:1px solid rgba(88,166,255,.3);border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">
+            &#9654; Resume Pipeline
+          </button>
+          <div id="pipe-resume-status" style="font-size:11px;color:var(--text-muted)"></div>
+        </div>
+      </details>
+
       <button class="dash-run-btn" id="pipe-run-btn" style="width:100%;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
         Run Pipeline
       </button>
+      <button class="pause-btn" id="pipe-pause-btn" style="display:none;width:100%;margin-top:8px;" data-job="">⏸ Pause</button>
       <div class="status-msg" id="pipe-status"></div>
 
       <!-- Pipeline stage cards -->
@@ -2476,6 +2777,82 @@ select { cursor: pointer; }
 
   </div>
 
+  <!-- ══════════════════════════ Library ══ -->
+  <div class="stage-view" id="library-view">
+
+    <!-- Left: shows list (reuses .panel grid column) -->
+    <div class="panel" style="padding:0;overflow:hidden;display:flex;flex-direction:column">
+      <div style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0">
+        <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted)">Shows</span>
+        <button id="lib-refresh-btn" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:16px;line-height:1;padding:0 2px;flex-shrink:0" title="Refresh">&#8635;</button>
+      </div>
+      <div style="padding:8px 10px;border-bottom:1px solid var(--border);flex-shrink:0">
+        <input id="lib-search" type="text" placeholder="Search shows…"
+               style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:12px;box-sizing:border-box;outline:none">
+      </div>
+      <div id="lib-shows-list" style="flex:1;overflow-y:auto;padding:8px">
+        <p style="padding:8px;font-size:12px;color:var(--text-muted)">Loading…</p>
+      </div>
+    </div>
+
+    <!-- Right: stage tabs + file list (reuses .right grid column) -->
+    <div class="right" style="display:flex;flex-direction:column;overflow:hidden">
+      <div id="lib-header" style="padding:10px 18px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--text);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <span id="lib-header-text">Select a show</span>
+        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+          <button id="lib-zip-btn"
+            style="display:none;align-items:center;gap:5px;padding:6px 12px;background:rgba(88,166,255,.1);color:var(--accent);border:1px solid rgba(88,166,255,.25);border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;transition:background .15s,border-color .15s"
+            onmouseover="this.style.background='rgba(88,166,255,.2)';this.style.borderColor='var(--accent)'"
+            onmouseout="this.style.background='rgba(88,166,255,.1)';this.style.borderColor='rgba(88,166,255,.25)'">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download All
+          </button>
+          <button id="lib-add-btn"
+            style="flex-shrink:0;display:flex;align-items:center;gap:5px;padding:6px 14px;background:linear-gradient(135deg,var(--accent) 0%,#a78bfa 100%);color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;box-shadow:0 0 14px rgba(88,166,255,.22);transition:box-shadow .2s,opacity .2s"
+            onmouseover="this.style.boxShadow='0 0 22px rgba(88,166,255,.4)';this.style.opacity='.88'"
+            onmouseout="this.style.boxShadow='0 0 14px rgba(88,166,255,.22)';this.style.opacity='1'">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Files
+          </button>
+        </div>
+      </div>
+      <!-- Upload panel -->
+      <div id="lib-upload-panel" style="display:none;border-bottom:1px solid var(--border);padding:14px 18px;background:var(--bg1);flex-shrink:0">
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Add Files to Library</div>
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div style="flex:1;min-width:140px">
+            <span class="fl" style="font-size:10px">Show Name</span>
+            <input type="text" id="lib-upload-show" placeholder="e.g. Dark Desires" style="padding:6px 8px;border-radius:5px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:12px;width:100%;box-sizing:border-box">
+          </div>
+          <div style="flex:1;min-width:160px">
+            <span class="fl" style="font-size:10px">Stage</span>
+            <select id="lib-upload-stage" style="padding:6px 8px;border-radius:5px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:12px;width:100%;box-sizing:border-box">
+              <option value="scripts">Episode Scripts</option>
+              <option value="stage1">Stage 1 — Reference Files</option>
+              <option value="stage2">Stage 2 — Shot Breakdown</option>
+              <option value="stage3">Stage 3 — Script Audit</option>
+              <option value="stage4">Stage 4 — Reference Images</option>
+              <option value="stage5">Stage 5 — Image Generation</option>
+              <option value="stage6">Stage 6 — Video Generation</option>
+              <option value="pipeline">Pipeline</option>
+            </select>
+          </div>
+          <div style="flex:2;min-width:180px">
+            <span class="fl" style="font-size:10px">Files</span>
+            <input type="file" id="lib-upload-files" multiple style="font-size:11px;color:var(--text);padding:4px 0">
+          </div>
+          <button id="lib-upload-submit" style="flex-shrink:0;padding:7px 18px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">&#8593; Save</button>
+        </div>
+        <div id="lib-upload-status" style="font-size:11px;margin-top:8px;min-height:16px"></div>
+      </div>
+      <div id="lib-stage-tabs" style="display:flex;gap:6px;padding:10px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap;flex-shrink:0"></div>
+      <div id="lib-files-list" style="flex:1;overflow-y:auto;padding:14px 18px">
+        <p style="font-size:12px;color:var(--text-muted)">Select a show to browse its files.</p>
+      </div>
+    </div>
+
+  </div>
+
 </div>
 
 <div class="token-bar">
@@ -2489,6 +2866,17 @@ select { cursor: pointer; }
 <script>
 // ── Model name ────────────────────────────────────────────────────────────────
 let LLM_INPUT_COST = 3.0, LLM_OUTPUT_COST = 15.0, LLM_MODEL_NAME = 'unknown';
+
+// ── Browser notifications ──────────────────────────────────────────────────────
+if ('Notification' in window && Notification.permission === 'default') {
+  Notification.requestPermission();
+}
+function notifyJobDone(title, body) {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try { new Notification(title, { body, icon: '/static/logo.png' }); } catch(_) {}
+  }
+}
+
 (async () => {
   try {
     const r = await fetch('/api/config');
@@ -2543,22 +2931,34 @@ function _slideIn(el, displayVal, dir) {
   }));
 }
 
+function _showHdrBtns() {
+  document.getElementById('hdr-back').style.display = '';
+  document.getElementById('hdr-library-btn').style.display = '';
+  document.getElementById('hdr-history-btn').style.display = '';
+}
+function _hideHdrBtns() {
+  document.getElementById('hdr-back').style.display = 'none';
+  document.getElementById('hdr-library-btn').style.display = 'none';
+  document.getElementById('hdr-history-btn').style.display = 'none';
+}
+
 async function showHome() {
   const nav = document.getElementById('stage-nav');
   const main = document.querySelector('.main');
   const picker = document.getElementById('stage-picker');
   const pov = document.getElementById('pipeline-overview');
+  const libo = document.getElementById('library-overview');
   const home = document.getElementById('home-screen');
-  document.getElementById('hdr-back').style.display = 'none';
+  _hideHdrBtns();
   document.querySelectorAll('.stage-view').forEach(v => v.classList.remove('active'));
-  await Promise.all([_slideOut(nav, 'up'), _slideOut(main, 'left'), _slideOut(picker, 'right'), _slideOut(pov, 'right')]);
+  await Promise.all([_slideOut(nav, 'up'), _slideOut(main, 'left'), _slideOut(picker, 'right'), _slideOut(pov, 'right'), _slideOut(libo, 'right')]);
   _slideIn(home, 'flex', 'right');
 }
 
 async function enterPipeline() {
   const home = document.getElementById('home-screen');
   await _slideOut(home, 'left');
-  document.getElementById('hdr-back').style.display = '';
+  _showHdrBtns();
   _slideIn(document.getElementById('pipeline-overview'), 'flex', 'left');
 }
 
@@ -2577,13 +2977,57 @@ async function continueToPipeline() {
 async function enterStages() {
   const home = document.getElementById('home-screen');
   await _slideOut(home, 'right');
-  document.getElementById('hdr-back').style.display = '';
+  _showHdrBtns();
   _slideIn(document.getElementById('stage-picker'), 'flex', 'left');
+}
+
+async function enterLibrary() {
+  const home = document.getElementById('home-screen');
+  await _slideOut(home, 'left');
+  _showHdrBtns();
+  _slideIn(document.getElementById('library-overview'), 'flex', 'left');
+}
+
+async function continueToLibrary() {
+  const libo = document.getElementById('library-overview');
+  await _slideOut(libo, 'left');
+  document.querySelectorAll('.stage-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.stage-view').forEach(v => v.classList.remove('active'));
+  const libBtn = document.querySelector('[data-stage="library-view"]');
+  if (libBtn) libBtn.classList.add('active');
+  document.getElementById('library-view').classList.add('active');
+  _slideIn(document.getElementById('stage-nav'), 'flex', 'up');
+  _slideIn(document.querySelector('.main'), 'block', 'left');
+  window._libAPI && window._libAPI.loadShows();
+}
+
+async function goToLibraryFromHeader() {
+  const picker = document.getElementById('stage-picker');
+  const pov    = document.getElementById('pipeline-overview');
+  const libo   = document.getElementById('library-overview');
+  const main   = document.querySelector('.main');
+  const nav    = document.getElementById('stage-nav');
+  const outs = [];
+  if (getComputedStyle(picker).display !== 'none') outs.push(_slideOut(picker, 'left'));
+  if (getComputedStyle(pov).display !== 'none')    outs.push(_slideOut(pov, 'left'));
+  if (getComputedStyle(libo).display !== 'none')   outs.push(_slideOut(libo, 'left'));
+  await Promise.all(outs);
+  if (getComputedStyle(main).display === 'none') {
+    _slideIn(nav, 'flex', 'up');
+    _slideIn(main, 'block', 'left');
+  }
+  document.querySelectorAll('.stage-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.stage-view').forEach(v => v.classList.remove('active'));
+  const libBtn = document.querySelector('[data-stage="library-view"]');
+  if (libBtn) libBtn.classList.add('active');
+  document.getElementById('library-view').classList.add('active');
+  window._libAPI && window._libAPI.loadShows();
 }
 
 async function openStage(stageId) {
   const picker = document.getElementById('stage-picker');
   await _slideOut(picker, 'left');
+  _showHdrBtns();
   document.querySelectorAll('.stage-tab').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.stage-view').forEach(v => v.classList.remove('active'));
   const btn = document.querySelector(`[data-stage="${stageId}"]`);
@@ -2842,7 +3286,7 @@ function s1RenderFiles(jobId, files) {
   html += `<hr class="divider" style="margin:16px 0">
   <div style="margin-bottom:6px"><span class="fl" style="margin:0">Save to Database</span></div>
   <div class="save-db-row">
-    <input type="text" id="s1-show-name" placeholder="Show name — e.g. GDA Season 1">
+    <input type="text" id="s1-db-show-name" placeholder="Show name — e.g. GDA Season 1">
     <button class="save-db-btn" id="s1-save-btn">Save</button>
   </div>
   <div class="status-msg" id="s1-save-status" style="margin-top:4px"></div>`;
@@ -2850,7 +3294,7 @@ function s1RenderFiles(jobId, files) {
   el.innerHTML = html;
 
   document.getElementById('s1-save-btn').addEventListener('click', async () => {
-    const name = document.getElementById('s1-show-name').value.trim();
+    const name = document.getElementById('s1-db-show-name').value.trim();
     const saveStatus = document.getElementById('s1-save-status');
     const saveBtn = document.getElementById('s1-save-btn');
     if (!name) { setStatus(saveStatus, 'Enter a show name.', 'err'); return; }
@@ -2882,6 +3326,7 @@ s1RunBtn.addEventListener('click', async () => {
 
   const fd = new FormData();
   fd.append('mode', mode); fd.append('workers', workers);
+  fd.append('show_name', document.getElementById('s1-show-name').value.trim());
   if (mode === 'episode') fd.append('episode', episode);
   files.forEach(f => fd.append('scripts', f));
 
@@ -2901,6 +3346,7 @@ s1RunBtn.addEventListener('click', async () => {
     jobId = d.job_id; s1JobId = jobId;
   } catch(e) { setStatus(s1StatusEl, 'Network error: ' + e.message, 'err'); s1RunBtn.disabled = false; return; }
 
+  window._pauseBtn && window._pauseBtn.show('s1', jobId);
   setStatus(s1StatusEl, 'Running…');
   if (s1Poll) clearInterval(s1Poll);
   const s1FilesEl = document.getElementById('s1-files-content');
@@ -2922,7 +3368,7 @@ s1RunBtn.addEventListener('click', async () => {
   const es = new EventSource(`/api/stream/${jobId}`);
   es.onmessage = e => logLine(s1LogEl, e.data);
   es.addEventListener('done', async () => {
-    es.close(); s1RunBtn.disabled = false;
+    es.close(); s1RunBtn.disabled = false; window._pauseBtn && window._pauseBtn.hide('s1');
     clearInterval(s1Poll); s1Poll = null;
     try {
       const r = await fetch(`/api/status/${jobId}`);
@@ -2935,12 +3381,13 @@ s1RunBtn.addEventListener('click', async () => {
         const s1FE = document.getElementById('s1-files-content');
         s1FE.innerHTML += tokenSummaryHtml(d.tokens, false, d.file_tokens, d.total_cost);
         switchTab(s1Right, 's1-files-pane');
+        notifyJobDone('Stage 1 Complete', `${d.files.length} reference file(s) generated`);
       } else {
         setStatus(s1StatusEl, 'Pipeline failed — check the log.', 'err');
       }
     } catch(_) { setStatus(s1StatusEl, 'Could not fetch results.', 'err'); }
   });
-  es.onerror = () => { es.close(); s1RunBtn.disabled = false; setStatus(s1StatusEl, 'Stream error.', 'err'); };
+  es.onerror = () => { es.close(); s1RunBtn.disabled = false; window._pauseBtn && window._pauseBtn.hide('s1'); setStatus(s1StatusEl, 'Stream error.', 'err'); };
 });
 
 // ═══════════════════════════════════════ Stage 2 ══════════════════════════════
@@ -2952,22 +3399,232 @@ let s2Poll = null;
 // Script toggle
 const s2PasteBtn  = document.getElementById('s2-paste-btn');
 const s2UploadBtn = document.getElementById('s2-upload-btn');
-s2PasteBtn.addEventListener('click', () => {
-  s2PasteBtn.classList.add('active'); s2UploadBtn.classList.remove('active');
-  document.getElementById('s2-text-wrap').style.display = 'block';
-  document.getElementById('s2-file-wrap').style.display = 'none';
-});
-s2UploadBtn.addEventListener('click', () => {
-  s2UploadBtn.classList.add('active'); s2PasteBtn.classList.remove('active');
-  document.getElementById('s2-file-wrap').style.display = 'block';
-  document.getElementById('s2-text-wrap').style.display = 'none';
-});
+const s2TextWrap  = document.getElementById('s2-text-wrap');
+const s2FileWrap  = document.getElementById('s2-file-wrap');
 
 wireDropZone(
   document.getElementById('s2-drop'),
   document.getElementById('s2-file-input'),
   document.getElementById('s2-file-list'), true
 );
+
+// ── Shared DB helpers ────────────────────────────────────────────────────────
+async function fetchDbFile(id, filename, mime) {
+  const r = await fetch(`/api/db/file/${id}`);
+  const blob = await r.blob();
+  return new File([blob], filename, { type: mime || 'application/octet-stream' });
+}
+async function loadDbShowsInto(sel) {
+  try {
+    const shows = await (await fetch('/api/db/shows')).json();
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— select a show —</option>' +
+      shows.map(s => `<option value="${s.id}"${s.id == cur ? ' selected' : ''}>${s.name}</option>`).join('');
+  } catch(e) { sel.innerHTML = '<option value="">Error loading shows</option>'; }
+}
+function fmtDbSize(b) {
+  if (!b) return '';
+  if (b < 1024) return b + 'B';
+  if (b < 1048576) return (b/1024).toFixed(0) + 'KB';
+  return (b/1048576).toFixed(1) + 'MB';
+}
+function dbFileRow(f) {
+  return `<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--bg2);border:1px solid var(--border);border-radius:5px;margin-bottom:3px">
+    <span style="font-size:11px;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.filename.split('/').pop()}</span>
+    <span style="font-size:10px;color:var(--text-muted);flex-shrink:0">${fmtDbSize(f.file_size)}</span>
+  </div>`;
+}
+
+// ── Stage 3 DB panel ─────────────────────────────────────────────────────────
+const s3SrcUploadBtn = document.getElementById('s3-src-upload-btn');
+const s3SrcDbBtn     = document.getElementById('s3-src-db-btn');
+const s3UploadPanel  = document.getElementById('s3-upload-panel');
+const s3DbPanel      = document.getElementById('s3-db-panel');
+const s3ShowSel      = document.getElementById('s3-show-sel');
+let s3DbFiles = [];
+
+s3SrcUploadBtn.addEventListener('click', () => {
+  s3SrcUploadBtn.classList.add('active'); s3SrcDbBtn.classList.remove('active');
+  s3UploadPanel.style.display = 'block';  s3DbPanel.style.display = 'none';
+});
+s3SrcDbBtn.addEventListener('click', async () => {
+  s3SrcDbBtn.classList.add('active'); s3SrcUploadBtn.classList.remove('active');
+  s3UploadPanel.style.display = 'none';   s3DbPanel.style.display = 'block';
+  await loadDbShowsInto(s3ShowSel);
+});
+s3ShowSel.addEventListener('change', async function() {
+  const sid = this.value;
+  s3DbFiles = [];
+  const el = document.getElementById('s3-db-files');
+  if (!sid) { el.textContent = 'Select a show to load Stage 2 breakdown files.'; return; }
+  el.innerHTML = '<span style="color:var(--text-muted)">Loading…</span>';
+  const files = await (await fetch(`/api/db/shows/${sid}/files?stage=stage2`)).json();
+  s3DbFiles = files.filter(f => f.filename.endsWith('.xlsx'));
+  el.innerHTML = s3DbFiles.length
+    ? `<div style="font-size:10px;color:var(--text-muted);margin-bottom:4px">STAGE 2 BREAKDOWN (${s3DbFiles.length})</div>` + s3DbFiles.map(dbFileRow).join('')
+    : '<span style="color:#e53e3e;font-size:11px">No Stage 2 Excel files found for this show.</span>';
+});
+document.querySelector('[data-stage="stage3-view"]').addEventListener('click', async () => {
+  if (s3SrcDbBtn.classList.contains('active')) await loadDbShowsInto(s3ShowSel);
+});
+
+// ── Stage 4 DB panel ─────────────────────────────────────────────────────────
+const s4SrcUploadBtn = document.getElementById('s4-src-upload-btn');
+const s4SrcDbBtn     = document.getElementById('s4-src-db-btn');
+const s4UploadPanel  = document.getElementById('s4-upload-panel');
+const s4DbPanel      = document.getElementById('s4-db-panel');
+const s4ShowSel      = document.getElementById('s4-show-sel');
+let s4DbFiles = []; // [{...file, _isChar: bool}]
+
+s4SrcUploadBtn.addEventListener('click', () => {
+  s4SrcUploadBtn.classList.add('active'); s4SrcDbBtn.classList.remove('active');
+  s4UploadPanel.style.display = 'block';  s4DbPanel.style.display = 'none';
+});
+s4SrcDbBtn.addEventListener('click', async () => {
+  s4SrcDbBtn.classList.add('active'); s4SrcUploadBtn.classList.remove('active');
+  s4UploadPanel.style.display = 'none';   s4DbPanel.style.display = 'block';
+  await loadDbShowsInto(s4ShowSel);
+});
+s4ShowSel.addEventListener('change', async function() {
+  const sid = this.value;
+  s4DbFiles = [];
+  const el = document.getElementById('s4-db-files');
+  if (!sid) { el.textContent = 'Select a show to load Stage 1 canvas files.'; return; }
+  el.innerHTML = '<span style="color:var(--text-muted)">Loading…</span>';
+  const files = await (await fetch(`/api/db/shows/${sid}/files?stage=stage1`)).json();
+  const canvas = files.filter(f => /character_canvas|location_reference/i.test(f.filename));
+  s4DbFiles = canvas.map(f => ({...f, _isChar: /character_canvas/i.test(f.filename)}));
+  if (!canvas.length) { el.innerHTML = '<span style="color:#e53e3e;font-size:11px">No canvas files found in Stage 1 for this show.</span>'; return; }
+  const chars = s4DbFiles.filter(f => f._isChar), locs = s4DbFiles.filter(f => !f._isChar);
+  let h = '';
+  if (chars.length) h += `<div style="font-size:10px;color:var(--text-muted);margin-bottom:3px">CHARACTER CANVAS (${chars.length})</div>` + chars.map(dbFileRow).join('');
+  if (locs.length)  h += `<div style="font-size:10px;color:var(--text-muted);margin:6px 0 3px">LOCATION REFERENCE (${locs.length})</div>` + locs.map(dbFileRow).join('');
+  el.innerHTML = h;
+});
+document.querySelector('[data-stage="stage4-view"]').addEventListener('click', async () => {
+  if (s4SrcDbBtn.classList.contains('active')) await loadDbShowsInto(s4ShowSel);
+});
+
+// ── Stage 5 DB panel ─────────────────────────────────────────────────────────
+const s5SrcUploadBtn = document.getElementById('s5-src-upload-btn');
+const s5SrcDbBtn     = document.getElementById('s5-src-db-btn');
+const s5UploadPanel  = document.getElementById('s5-upload-panel');
+const s5DbPanel      = document.getElementById('s5-db-panel');
+const s5ShowSel      = document.getElementById('s5-show-sel');
+let s5DbExcels = [], s5DbCharFiles = [], s5DbLocFiles = [];
+
+s5SrcUploadBtn.addEventListener('click', () => {
+  s5SrcUploadBtn.classList.add('active'); s5SrcDbBtn.classList.remove('active');
+  s5UploadPanel.style.display = 'block';  s5DbPanel.style.display = 'none';
+});
+s5SrcDbBtn.addEventListener('click', async () => {
+  s5SrcDbBtn.classList.add('active'); s5SrcUploadBtn.classList.remove('active');
+  s5UploadPanel.style.display = 'none';   s5DbPanel.style.display = 'block';
+  await loadDbShowsInto(s5ShowSel);
+});
+s5ShowSel.addEventListener('change', async function() {
+  const sid = this.value;
+  s5DbExcels = []; s5DbCharFiles = []; s5DbLocFiles = [];
+  const el = document.getElementById('s5-db-files');
+  if (!sid) { el.textContent = 'Select a show to load breakdown Excel + Stage 4 reference images.'; return; }
+  el.innerHTML = '<span style="color:var(--text-muted)">Loading…</span>';
+  const [s2f, s3f, s4f] = await Promise.all([
+    fetch(`/api/db/shows/${sid}/files?stage=stage2`).then(r => r.json()),
+    fetch(`/api/db/shows/${sid}/files?stage=stage3`).then(r => r.json()),
+    fetch(`/api/db/shows/${sid}/files?stage=stage4`).then(r => r.json()),
+  ]);
+  const s3x = s3f.filter(f => f.filename.endsWith('.xlsx')), s2x = s2f.filter(f => f.filename.endsWith('.xlsx'));
+  s5DbExcels = s3x.length ? s3x : s2x;
+  const s4imgs = s4f.filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f.filename));
+  s5DbCharFiles = s4imgs.filter(f => /char|character|person|portrait/i.test(f.filename));
+  s5DbLocFiles  = s4imgs.filter(f => !s5DbCharFiles.includes(f));
+  if (!s5DbCharFiles.length && s5DbLocFiles.length === 0) s5DbCharFiles = s4imgs;
+  let h = '';
+  if (s5DbExcels.length) {
+    const src = s3x.length ? 'Stage 3' : 'Stage 2';
+    h += `<div style="font-size:10px;color:var(--text-muted);margin-bottom:3px">BREAKDOWN EXCEL — ${src} (${s5DbExcels.length})</div>` + s5DbExcels.map(dbFileRow).join('');
+  } else {
+    h += '<div style="color:#e53e3e;font-size:11px;margin-bottom:6px">No breakdown Excel found in Stage 2 or 3.</div>';
+  }
+  if (s4imgs.length) {
+    h += `<div style="font-size:10px;color:var(--text-muted);margin:6px 0 3px">STAGE 4 REFERENCE IMAGES (${s4imgs.length})</div>` +
+         `<div style="font-size:11px;color:var(--text-muted)">Will be loaded as char/location refs</div>`;
+  } else {
+    h += '<div style="font-size:11px;color:var(--text-muted);margin-top:6px">No Stage 4 images found (optional).</div>';
+  }
+  el.innerHTML = h;
+});
+document.querySelector('[data-stage="stage5-view"]').addEventListener('click', async () => {
+  if (s5SrcDbBtn.classList.contains('active')) await loadDbShowsInto(s5ShowSel);
+});
+
+// ── Stage 6 DB panel ─────────────────────────────────────────────────────────
+const s6SrcUploadBtn   = document.getElementById('s6-src-upload-btn');
+const s6SrcDbBtn       = document.getElementById('s6-src-db-btn');
+const s6ExcelUpPanel   = document.getElementById('s6-excel-upload-panel');
+const s6ExcelDbPanel   = document.getElementById('s6-excel-db-panel');
+const s6ShowSel        = document.getElementById('s6-show-sel');
+let s6DbExcels = [];
+
+s6SrcUploadBtn.addEventListener('click', () => {
+  s6SrcUploadBtn.classList.add('active'); s6SrcDbBtn.classList.remove('active');
+  s6ExcelUpPanel.style.display = 'block'; s6ExcelDbPanel.style.display = 'none';
+});
+s6SrcDbBtn.addEventListener('click', async () => {
+  s6SrcDbBtn.classList.add('active'); s6SrcUploadBtn.classList.remove('active');
+  s6ExcelUpPanel.style.display = 'none';  s6ExcelDbPanel.style.display = 'block';
+  await loadDbShowsInto(s6ShowSel);
+});
+s6ShowSel.addEventListener('change', async function() {
+  const sid = this.value;
+  s6DbExcels = [];
+  const el = document.getElementById('s6-db-files');
+  if (!sid) { el.textContent = 'Select a show to load Stage 5 Excel files.'; return; }
+  el.innerHTML = '<span style="color:var(--text-muted)">Loading…</span>';
+  const files = await (await fetch(`/api/db/shows/${sid}/files?stage=stage5`)).json();
+  s6DbExcels = files.filter(f => f.filename.endsWith('.xlsx'));
+  el.innerHTML = s6DbExcels.length
+    ? `<div style="font-size:10px;color:var(--text-muted);margin-bottom:4px">STAGE 5 EXCEL (${s6DbExcels.length})</div>` + s6DbExcels.map(dbFileRow).join('')
+    : '<span style="color:#e53e3e;font-size:11px">No Stage 5 Excel files found for this show.</span>';
+});
+document.querySelector('[data-stage="stage6-view"]').addEventListener('click', async () => {
+  if (s6SrcDbBtn.classList.contains('active')) await loadDbShowsInto(s6ShowSel);
+});
+
+// Script source toggle (Paste / Upload / From Database)
+const s2ScriptDbBtn   = document.getElementById('s2-script-db-btn');
+const s2ScriptDbWrap  = document.getElementById('s2-script-db-wrap');
+const s2ScriptShowSel = document.getElementById('s2-script-show-sel');
+let s2ScriptDbFiles   = []; // [{id, filename, mime_type}]
+
+s2PasteBtn.addEventListener('click', () => {
+  s2PasteBtn.classList.add('active'); s2UploadBtn.classList.remove('active'); s2ScriptDbBtn.classList.remove('active');
+  s2TextWrap.style.display = 'block'; s2FileWrap.style.display = 'none'; s2ScriptDbWrap.style.display = 'none';
+});
+s2UploadBtn.addEventListener('click', () => {
+  s2UploadBtn.classList.add('active'); s2PasteBtn.classList.remove('active'); s2ScriptDbBtn.classList.remove('active');
+  s2FileWrap.style.display = 'block'; s2TextWrap.style.display = 'none'; s2ScriptDbWrap.style.display = 'none';
+});
+s2ScriptDbBtn.addEventListener('click', async () => {
+  s2ScriptDbBtn.classList.add('active'); s2PasteBtn.classList.remove('active'); s2UploadBtn.classList.remove('active');
+  s2ScriptDbWrap.style.display = 'block'; s2TextWrap.style.display = 'none'; s2FileWrap.style.display = 'none';
+  await loadDbShowsInto(s2ScriptShowSel);
+});
+
+s2ScriptShowSel.addEventListener('change', async function() {
+  const sid = this.value;
+  const el = document.getElementById('s2-script-db-files');
+  s2ScriptDbFiles = [];
+  if (!sid) { el.textContent = 'Select a show to load its episode scripts.'; return; }
+  el.textContent = 'Loading…';
+  try {
+    const files = await (await fetch(`/api/db/shows/${sid}/files?stage=scripts`)).json();
+    s2ScriptDbFiles = files.filter(f => /\.(txt|md|fountain|docx)$/i.test(f.filename));
+    el.innerHTML = s2ScriptDbFiles.length
+      ? `<div style="font-size:10px;color:var(--text-muted);margin-bottom:4px">EPISODE SCRIPTS (${s2ScriptDbFiles.length})</div>` + s2ScriptDbFiles.map(dbFileRow).join('')
+      : '<span style="color:#e53e3e;font-size:11px">No script files found for this show.</span>';
+  } catch(e) { el.textContent = 'Error loading scripts.'; }
+});
 
 // Reference source toggle
 const s2SrcDbBtn     = document.getElementById('s2-src-db-btn');
@@ -3022,7 +3679,7 @@ document.getElementById('s2-show-select').addEventListener('change', async funct
 
   badges.innerHTML = '<span style="font-size:11px;color:#a0aec0">Loading files…</span>';
   try {
-    const files = await (await fetch(`/api/db/shows/${showId}/files`)).json();
+    const files = await (await fetch(`/api/db/shows/${showId}/stage1-refs`)).json();
     if (files.error) { badges.innerHTML = `<span style="font-size:11px;color:#e53e3e">${files.error}</span>`; return; }
 
     const typeLabels = { show_tone_bible: 'Tone Bible', character_canvas: 'Characters', location_reference: 'Locations' };
@@ -3047,7 +3704,8 @@ document.getElementById('s2-show-select').addEventListener('change', async funct
 function updateMultiInfo() {
   const info = document.getElementById('s2-multi-info');
   const isPaste = s2PasteBtn.classList.contains('active');
-  if (isPaste) { info.style.display = 'none'; return; }
+  const isScriptDb = s2ScriptDbBtn.classList.contains('active');
+  if (isPaste || isScriptDb) { info.style.display = 'none'; return; }
   const files = Array.from(document.getElementById('s2-file-input').files);
   if (files.length > 1) {
     const names = files.map(f => f.name.replace(/\.[^.]+$/, '')).join(', ');
@@ -3068,21 +3726,30 @@ loadShowsDropdown(); // also load on page init
 
 // Stage 2 run
 s2RunBtn.addEventListener('click', async () => {
-  const isPaste = s2PasteBtn.classList.contains('active');
-  const scriptText = document.getElementById('s2-script-text').value.trim();
+  const isPaste    = s2PasteBtn.classList.contains('active');
+  const isScriptDb = s2ScriptDbBtn.classList.contains('active');
+  const scriptText  = document.getElementById('s2-script-text').value.trim();
   const scriptFiles = Array.from(document.getElementById('s2-file-input').files);
   const episodeName = document.getElementById('s2-episode-name').value.trim() || 'episode';
   const useDb = s2SrcDbBtn.classList.contains('active');
 
-  if (isPaste && !scriptText)        { setStatus(s2StatusEl, 'Paste a script or switch to file upload.', 'err'); return; }
-  if (!isPaste && !scriptFiles.length) { setStatus(s2StatusEl, 'Upload a script file.', 'err'); return; }
+  if (isPaste && !scriptText)           { setStatus(s2StatusEl, 'Paste a script or switch to file upload.', 'err'); return; }
+  if (!isPaste && !isScriptDb && !scriptFiles.length) { setStatus(s2StatusEl, 'Upload a script file.', 'err'); return; }
+  if (isScriptDb && !s2ScriptDbFiles.length) { setStatus(s2StatusEl, 'Select a show with episode scripts in the database.', 'err'); return; }
 
   const fd = new FormData();
   fd.append('mode', 'full');
   fd.append('episode_name', episodeName);
+  fd.append('show_name', document.getElementById('s2-show-name').value.trim());
 
-  if (isPaste) fd.append('script_text', scriptText);
-  else scriptFiles.forEach(f => fd.append('script', f));
+  if (isPaste) {
+    fd.append('script_text', scriptText);
+  } else if (isScriptDb) {
+    const dbScripts = await Promise.all(s2ScriptDbFiles.map(f => fetchDbFile(f.id, f.filename.split('/').pop(), f.mime_type)));
+    dbScripts.forEach(f => fd.append('script', f));
+  } else {
+    scriptFiles.forEach(f => fd.append('script', f));
+  }
 
   if (useDb) {
     // Shared refs: one per type
@@ -3117,6 +3784,7 @@ s2RunBtn.addEventListener('click', async () => {
     jobId = d.job_id;
   } catch(e) { setStatus(s2StatusEl, 'Network error: ' + e.message, 'err'); s2RunBtn.disabled = false; return; }
 
+  window._pauseBtn && window._pauseBtn.show('s2', jobId);
   setStatus(s2StatusEl, 'Running…');
   document.getElementById('s2-shot-counter').style.display = 'block';
   document.getElementById('s2-shot-num').textContent = '0';
@@ -3147,7 +3815,7 @@ s2RunBtn.addEventListener('click', async () => {
   const es = new EventSource(`/api/stream/${jobId}`);
   es.onmessage = e => logLine(s2LogEl, e.data);
   es.addEventListener('done', async () => {
-    es.close(); s2RunBtn.disabled = false;
+    es.close(); s2RunBtn.disabled = false; window._pauseBtn && window._pauseBtn.hide('s2');
     clearInterval(s2Poll); s2Poll = null;
     try {
       const r = await fetch(`/api/status/${jobId}`);
@@ -3169,6 +3837,7 @@ s2RunBtn.addEventListener('click', async () => {
           html += tokenSummaryHtml(d.tokens, false, d.file_tokens, d.total_cost);
           el.innerHTML = html;
           switchTab(s2Right, 's2-files-pane');
+          notifyJobDone('Stage 2 Complete', `${outputs.length} shot breakdown(s) ready`);
         } else {
           el.innerHTML = '<p class="empty-msg">No Excel files — see Live Log for results.</p>' + tokenSummaryHtml(d.tokens, false, d.file_tokens, d.total_cost);
         }
@@ -3177,7 +3846,7 @@ s2RunBtn.addEventListener('click', async () => {
       }
     } catch(_) { setStatus(s2StatusEl, 'Could not fetch results.', 'err'); }
   });
-  es.onerror = () => { es.close(); s2RunBtn.disabled = false; setStatus(s2StatusEl, 'Stream error.', 'err'); };
+  es.onerror = () => { es.close(); s2RunBtn.disabled = false; window._pauseBtn && window._pauseBtn.hide('s2'); setStatus(s2StatusEl, 'Stream error.', 'err'); };
 });
 
 // ═══════════════════════════════════════ Stage 3 ══════════════════════════════
@@ -3191,6 +3860,38 @@ let s3JobId = null;
 
 wireDropZone(document.getElementById('s3-excel-drop'), document.getElementById('s3-excel-input'), document.getElementById('s3-excel-list'), true);
 wireDropZone(document.getElementById('s3-script-drop'), document.getElementById('s3-script-input'), document.getElementById('s3-script-list'), false);
+
+// Stage 3 script DB toggle
+const s3ScriptUploadBtn  = document.getElementById('s3-script-upload-btn');
+const s3ScriptDbBtn      = document.getElementById('s3-script-db-btn');
+const s3ScriptUploadPanel = document.getElementById('s3-script-upload-panel');
+const s3ScriptDbPanel    = document.getElementById('s3-script-db-panel');
+const s3ScriptShowSel    = document.getElementById('s3-script-show-sel');
+let s3ScriptDbFiles = [];
+
+s3ScriptUploadBtn.addEventListener('click', () => {
+  s3ScriptUploadBtn.classList.add('active'); s3ScriptDbBtn.classList.remove('active');
+  s3ScriptUploadPanel.style.display = 'block'; s3ScriptDbPanel.style.display = 'none';
+});
+s3ScriptDbBtn.addEventListener('click', async () => {
+  s3ScriptDbBtn.classList.add('active'); s3ScriptUploadBtn.classList.remove('active');
+  s3ScriptDbPanel.style.display = 'block'; s3ScriptUploadPanel.style.display = 'none';
+  await loadDbShowsInto(s3ScriptShowSel);
+});
+s3ScriptShowSel.addEventListener('change', async function() {
+  const sid = this.value;
+  const el = document.getElementById('s3-script-db-files');
+  s3ScriptDbFiles = [];
+  if (!sid) { el.textContent = 'Select a show to load its episode scripts.'; return; }
+  el.textContent = 'Loading…';
+  try {
+    const files = await (await fetch(`/api/db/shows/${sid}/files?stage=scripts`)).json();
+    s3ScriptDbFiles = files.filter(f => /\.(txt|md|fountain|docx)$/i.test(f.filename));
+    el.innerHTML = s3ScriptDbFiles.length
+      ? `<div style="font-size:10px;color:var(--text-muted);margin-bottom:4px">EPISODE SCRIPTS (${s3ScriptDbFiles.length})</div>` + s3ScriptDbFiles.map(dbFileRow).join('')
+      : '<span style="color:#e53e3e;font-size:11px">No script files found for this show.</span>';
+  } catch(e) { el.textContent = 'Error loading scripts.'; }
+});
 
 function s3RenderFlags(flags, jobId) {
   const fixes = flags.fixes || [];
@@ -3324,14 +4025,30 @@ function s3RenderFlags(flags, jobId) {
 }
 
 s3RunBtn.addEventListener('click', async () => {
-  const excelFiles = Array.from(document.getElementById('s3-excel-input').files);
-  const scriptFiles = Array.from(document.getElementById('s3-script-input').files);
+  const useDbS3 = s3SrcDbBtn.classList.contains('active');
+  let excelFiles;
+  if (useDbS3) {
+    if (!s3DbFiles.length) { setStatus(s3StatusEl, 'Select a show and ensure Stage 2 Excel files exist in the database.', 'err'); return; }
+    setStatus(s3StatusEl, 'Fetching breakdown files from database…');
+    excelFiles = await Promise.all(s3DbFiles.map(f => fetchDbFile(f.id, f.filename.split('/').pop(), f.mime_type)));
+  } else {
+    excelFiles = Array.from(document.getElementById('s3-excel-input').files);
+  }
+  const useScriptDb = s3ScriptDbBtn.classList.contains('active');
+  let scriptFiles;
+  if (useScriptDb) {
+    if (!s3ScriptDbFiles.length) { setStatus(s3StatusEl, 'Select a show with episode scripts in the database.', 'err'); return; }
+    scriptFiles = await Promise.all(s3ScriptDbFiles.map(f => fetchDbFile(f.id, f.filename.split('/').pop(), f.mime_type)));
+  } else {
+    scriptFiles = Array.from(document.getElementById('s3-script-input').files);
+  }
   if (!excelFiles.length) { setStatus(s3StatusEl, 'Upload at least one shot breakdown Excel.', 'err'); return; }
   if (!scriptFiles.length) { setStatus(s3StatusEl, 'Upload the episode script file.', 'err'); return; }
 
   const fd = new FormData();
   excelFiles.forEach(f => fd.append('excels', f));
   scriptFiles.forEach(f => fd.append('scripts', f));
+  fd.append('show_name', document.getElementById('s3-show-name').value.trim());
 
   s3RunBtn.disabled = true;
   setStatus(s3StatusEl, 'Starting script audit…');
@@ -3352,10 +4069,10 @@ s3RunBtn.addEventListener('click', async () => {
     s3JobId = jobId;
   } catch(e) { setStatus(s3StatusEl, 'Network error: ' + e.message, 'err'); s3RunBtn.disabled = false; return; }
 
+  window._pauseBtn && window._pauseBtn.show('s3', jobId);
   setStatus(s3StatusEl, 'Running…');
   if (s3Poll) clearInterval(s3Poll);
 
-  const s3FilesEl = document.getElementById('s3-files-content');
   const s3RowRenderer = name => `<div class="file-row"><span class="fname">${name}</span>
     <a class="dl-btn" href="/api/stage3/download/${s3JobId}?filename=${encodeURIComponent(name)}" download="${name}">Download</a></div>`;
   const s3FilesTab = document.querySelector('[data-tab="s3-files-pane"]');
@@ -3375,7 +4092,7 @@ s3RunBtn.addEventListener('click', async () => {
   const es = new EventSource(`/api/stream/${jobId}`);
   es.onmessage = e => logLine(s3LogEl, e.data);
   es.addEventListener('done', async () => {
-    es.close(); s3RunBtn.disabled = false;
+    es.close(); s3RunBtn.disabled = false; window._pauseBtn && window._pauseBtn.hide('s3');
     if (s3Poll) { clearInterval(s3Poll); s3Poll = null; }
     try {
       const r = await fetch(`/api/status/${jobId}`);
@@ -3402,6 +4119,7 @@ s3RunBtn.addEventListener('click', async () => {
           html += tokenSummaryHtml(d.tokens, false, d.file_tokens, d.total_cost);
           s3FilesEl.innerHTML = html;
           switchTab(s3Right, 's3-files-pane');
+          notifyJobDone('Stage 3 Complete', 'Script audit finished');
         }
         s3FlagsEl.innerHTML = '<p class="empty-msg">No issues found — all Lines match the script.</p>';
       } else {
@@ -3409,7 +4127,7 @@ s3RunBtn.addEventListener('click', async () => {
       }
     } catch(_) { setStatus(s3StatusEl, 'Could not fetch results.', 'err'); }
   });
-  es.onerror = () => { es.close(); s3RunBtn.disabled = false; setStatus(s3StatusEl, 'Stream error.', 'err'); };
+  es.onerror = () => { es.close(); s3RunBtn.disabled = false; window._pauseBtn && window._pauseBtn.hide('s3'); setStatus(s3StatusEl, 'Stream error.', 'err'); };
 });
 
 // ═══════════════════════════════════════ Stage 4 ══════════════════════════════
@@ -3429,13 +4147,24 @@ wireDropZone(document.getElementById('s4-char-drop'), document.getElementById('s
 wireDropZone(document.getElementById('s4-loc-drop'),  document.getElementById('s4-loc-input'),  document.getElementById('s4-loc-list'),  false);
 
 s4RunBtn.addEventListener('click', async () => {
-  const charFiles = Array.from(document.getElementById('s4-char-input').files);
-  const locFiles  = Array.from(document.getElementById('s4-loc-input').files);
+  const useDbS4 = s4SrcDbBtn.classList.contains('active');
+  let charFiles, locFiles;
+  if (useDbS4) {
+    if (!s4DbFiles.length) { setStatus(s4StatusEl, 'Select a show with Stage 1 canvas files in the database.', 'err'); return; }
+    setStatus(s4StatusEl, 'Fetching canvas files from database…');
+    const allFetched = await Promise.all(s4DbFiles.map(f => fetchDbFile(f.id, f.filename.split('/').pop(), f.mime_type)));
+    charFiles = allFetched.filter((_, i) => s4DbFiles[i]._isChar);
+    locFiles  = allFetched.filter((_, i) => !s4DbFiles[i]._isChar);
+  } else {
+    charFiles = Array.from(document.getElementById('s4-char-input').files);
+    locFiles  = Array.from(document.getElementById('s4-loc-input').files);
+  }
   if (!charFiles.length && !locFiles.length) { setStatus(s4StatusEl, 'Upload at least one file.', 'err'); return; }
 
   const fd = new FormData();
   charFiles.forEach(f => fd.append('char_canvas', f));
   locFiles.forEach(f => fd.append('loc_canvas', f));
+  fd.append('show_name', document.getElementById('s4-show-name').value.trim());
 
   s4RunBtn.disabled = true;
   setStatus(s4StatusEl, 'Starting reference image generation…');
@@ -3453,6 +4182,8 @@ s4RunBtn.addEventListener('click', async () => {
     jobId = d.job_id;
     s4CurrentJobId = jobId;
   } catch(e) { setStatus(s4StatusEl, 'Network error: ' + e.message, 'err'); s4RunBtn.disabled = false; return; }
+
+  window._pauseBtn && window._pauseBtn.show('s4', jobId);
 
   setStatus(s4StatusEl, 'Running…');
   if (s4Poll) clearInterval(s4Poll);
@@ -3489,7 +4220,7 @@ s4RunBtn.addEventListener('click', async () => {
   const es = new EventSource(`/api/stream/${jobId}`);
   es.onmessage = e => logLine(s4LogEl, e.data);
   es.addEventListener('done', async () => {
-    es.close(); s4RunBtn.disabled = false;
+    es.close(); s4RunBtn.disabled = false; window._pauseBtn && window._pauseBtn.hide('s4');
     if (s4Poll) { clearInterval(s4Poll); s4Poll = null; }
     try {
       const r = await fetch(`/api/status/${jobId}`);
@@ -3503,12 +4234,13 @@ s4RunBtn.addEventListener('click', async () => {
         setStatus(s4StatusEl, outputs.length ? `Done — ${d.tokens?.output || 0} images generated ${cost ? '| ' + cost : ''}` : 'Done.', 'ok');
         if (jobId) s4RefreshAll(jobId);
         if (outputs.length) switchTab(s4Right, 's4-preview-pane');
+        notifyJobDone('Stage 4 Complete', `${d.tokens?.output || 0} reference images generated`);
       } else {
         setStatus(s4StatusEl, 'Pipeline failed — check the log.', 'err');
       }
     } catch(_) { setStatus(s4StatusEl, 'Could not fetch results.', 'err'); }
   });
-  es.onerror = () => { es.close(); s4RunBtn.disabled = false; setStatus(s4StatusEl, 'Stream error.', 'err'); };
+  es.onerror = () => { es.close(); s4RunBtn.disabled = false; window._pauseBtn && window._pauseBtn.hide('s4'); setStatus(s4StatusEl, 'Stream error.', 'err'); };
 });
 
 function s4RefreshAll(jobId) {
@@ -3547,9 +4279,12 @@ function s4LoadReviewGrid(jobId) {
     let html = '';
     items.forEach(s => {
       if (s.has_image) {
-        html += `<div class="shot-card" data-shot="${s.num}" title="${s.name}">
+        html += `<div class="shot-card" data-shot="${s.num}" title="${s.name}" style="position:relative">
           <span class="shot-num">#${s.num}</span>
           <img src="${s.preview_url}?t=${ts}" alt="${s.name}" loading="lazy">
+          <button class="lb-expand-btn" data-src="${s.preview_url}?t=${ts}" data-caption="${s.name}"
+            style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);border:none;color:#fff;border-radius:4px;width:22px;height:22px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s"
+            title="Expand">⤢</button>
         </div>`;
       } else {
         html += `<div class="shot-card" data-shot="${s.num}" title="${s.name}">
@@ -3560,6 +4295,12 @@ function s4LoadReviewGrid(jobId) {
     });
     s4ImgGrid.innerHTML = html || '<p class="empty-msg">No items found.</p>';
     s4RegenBtn.disabled = false;
+
+    s4ImgGrid.querySelectorAll('.lb-expand-btn').forEach(btn => {
+      btn.addEventListener('click', e => { e.stopPropagation(); window.openLightbox(btn.dataset.src, btn.dataset.caption); });
+      btn.closest('.shot-card').addEventListener('mouseenter', () => btn.style.opacity = '1');
+      btn.closest('.shot-card').addEventListener('mouseleave', () => btn.style.opacity = '0');
+    });
 
     s4ImgGrid.querySelectorAll('.shot-card').forEach(card => {
       card.addEventListener('click', () => {
@@ -3657,13 +4398,26 @@ wireDropZone(document.getElementById('s5-char-drop'),  document.getElementById('
 wireDropZone(document.getElementById('s5-loc-drop'),   document.getElementById('s5-loc-input'),   document.getElementById('s5-loc-list'),   true);
 
 s5RunBtn.addEventListener('click', async () => {
-  const excelFiles = Array.from(document.getElementById('s5-excel-input').files);
+  const useDbS5 = s5SrcDbBtn.classList.contains('active');
+  let excelFiles, charImgFiles, locImgFiles;
+  if (useDbS5) {
+    if (!s5DbExcels.length) { setStatus(s5StatusEl, 'Select a show with a breakdown Excel in the database.', 'err'); return; }
+    setStatus(s5StatusEl, 'Fetching files from database…');
+    excelFiles   = await Promise.all(s5DbExcels.map(f => fetchDbFile(f.id, f.filename.split('/').pop(), f.mime_type)));
+    charImgFiles = await Promise.all(s5DbCharFiles.map(f => fetchDbFile(f.id, f.filename.split('/').pop(), f.mime_type)));
+    locImgFiles  = await Promise.all(s5DbLocFiles.map(f => fetchDbFile(f.id, f.filename.split('/').pop(), f.mime_type)));
+  } else {
+    excelFiles   = Array.from(document.getElementById('s5-excel-input').files);
+    charImgFiles = Array.from(document.getElementById('s5-char-input').files);
+    locImgFiles  = Array.from(document.getElementById('s5-loc-input').files);
+  }
   if (!excelFiles.length) { setStatus(s5StatusEl, 'Upload a shot breakdown Excel.', 'err'); return; }
 
   const fd = new FormData();
   fd.append('excels', excelFiles[0]);
-  Array.from(document.getElementById('s5-char-input').files).forEach(f => fd.append('char_images', f));
-  Array.from(document.getElementById('s5-loc-input').files).forEach(f => fd.append('loc_images', f));
+  charImgFiles.forEach(f => fd.append('char_images', f));
+  locImgFiles.forEach(f => fd.append('loc_images', f));
+  fd.append('show_name', document.getElementById('s5-show-name').value.trim());
 
   s5RunBtn.disabled = true;
   setStatus(s5StatusEl, 'Starting image generation…');
@@ -3681,6 +4435,8 @@ s5RunBtn.addEventListener('click', async () => {
     jobId = d.job_id;
     s5CurrentJobId = jobId;
   } catch(e) { setStatus(s5StatusEl, 'Network error: ' + e.message, 'err'); s5RunBtn.disabled = false; return; }
+
+  window._pauseBtn && window._pauseBtn.show('s5', jobId);
 
   setStatus(s5StatusEl, 'Running…');
   if (s5Poll) clearInterval(s5Poll);
@@ -3740,7 +4496,7 @@ s5RunBtn.addEventListener('click', async () => {
   const es = new EventSource(`/api/stream/${jobId}`);
   es.onmessage = e => logLine(s5LogEl, e.data);
   es.addEventListener('done', async () => {
-    es.close(); s5RunBtn.disabled = false;
+    es.close(); s5RunBtn.disabled = false; window._pauseBtn && window._pauseBtn.hide('s5');
     if (s5Poll) { clearInterval(s5Poll); s5Poll = null; }
     try {
       const r = await fetch(`/api/status/${jobId}`);
@@ -3756,12 +4512,13 @@ s5RunBtn.addEventListener('click', async () => {
         if (outputs.length || d.sheet_url) {
           switchTab(s5Right, 's5-preview-pane');
         }
+        notifyJobDone('Stage 5 Complete', `${d.tokens?.output || 0} shot images generated`);
       } else {
         setStatus(s5StatusEl, 'Pipeline failed — check the log.', 'err');
       }
     } catch(_) { setStatus(s5StatusEl, 'Could not fetch results.', 'err'); }
   });
-  es.onerror = () => { es.close(); s5RunBtn.disabled = false; setStatus(s5StatusEl, 'Stream error.', 'err'); };
+  es.onerror = () => { es.close(); s5RunBtn.disabled = false; window._pauseBtn && window._pauseBtn.hide('s5'); setStatus(s5StatusEl, 'Stream error.', 'err'); };
 });
 
 // ── Stage 5 Preview + Review & Feedback ──────────────────────────────────────
@@ -3769,6 +4526,7 @@ let s5CurrentJobId = null;
 const s5PreviewGrid = document.getElementById('s5-preview-grid');
 const s5ImgGrid     = document.getElementById('s5-img-grid');
 const s5RegenBtn    = document.getElementById('s5-regen-btn');
+const s5ExportBtn   = document.getElementById('s5-export-btn');
 const s5RegenStat   = document.getElementById('s5-regen-status');
 const s5Feedback    = document.getElementById('s5-feedback');
 
@@ -3821,6 +4579,7 @@ function s5LoadReviewGrid(jobId) {
     });
     s5ImgGrid.innerHTML = html || '<p class="empty-msg">No shots found.</p>';
     s5RegenBtn.disabled = false;
+    s5ExportBtn.disabled = false;
 
     s5ImgGrid.querySelectorAll('.shot-card').forEach(card => {
       card.addEventListener('click', () => {
@@ -3911,6 +4670,35 @@ s5RegenBtn.addEventListener('click', async () => {
   }
 });
 
+s5ExportBtn.addEventListener('click', async () => {
+  if (!s5CurrentJobId) return;
+  s5ExportBtn.disabled = true;
+  s5RegenStat.textContent = 'Generating Excel...';
+  s5RegenStat.style.color = '#8b949e';
+  try {
+    const res = await fetch('/api/stage5/export', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ job_id: s5CurrentJobId }),
+    });
+    const d = await res.json();
+    if (!res.ok) {
+      s5RegenStat.textContent = d.error || 'Error';
+      s5RegenStat.style.color = '#f85149';
+      s5ExportBtn.disabled = false;
+      return;
+    }
+    s5RegenStat.textContent = 'Excel generated!';
+    s5RegenStat.style.color = '#3fb950';
+    s5RefreshOutputFiles(s5CurrentJobId);
+    switchTab(s5Right, 's5-files-pane');
+  } catch(e) {
+    s5RegenStat.textContent = 'Error: ' + e.message;
+    s5RegenStat.style.color = '#f85149';
+  }
+  s5ExportBtn.disabled = false;
+});
+
 // ═══════════════════════════════════════ Stage 6 ══════════════════════════════
 const s6LogEl    = document.getElementById('s6-log');
 const s6RunBtn   = document.getElementById('s6-run-btn');
@@ -3939,7 +4727,15 @@ document.querySelectorAll('#s6-color-row button').forEach(btn => {
 });
 
 s6RunBtn.addEventListener('click', async () => {
-  const excelFiles = Array.from(document.getElementById('s6-excel-input').files);
+  const useDbS6 = s6SrcDbBtn.classList.contains('active');
+  let excelFiles;
+  if (useDbS6) {
+    if (!s6DbExcels.length) { setStatus(s6StatusEl, 'Select a show with Stage 5 Excel files in the database.', 'err'); return; }
+    setStatus(s6StatusEl, 'Fetching Excel files from database…');
+    excelFiles = await Promise.all(s6DbExcels.map(f => fetchDbFile(f.id, f.filename.split('/').pop(), f.mime_type)));
+  } else {
+    excelFiles = Array.from(document.getElementById('s6-excel-input').files);
+  }
   const audioFiles = Array.from(document.getElementById('s6-audio-input').files);
   if (!excelFiles.length) { setStatus(s6StatusEl, 'Upload at least one Excel file.', 'err'); return; }
   if (!audioFiles.length) { setStatus(s6StatusEl, 'Upload at least one audio file.', 'err'); return; }
@@ -3953,6 +4749,7 @@ s6RunBtn.addEventListener('click', async () => {
   fd.append('subs', document.getElementById('s6-subs').value);
   fd.append('sub_color', document.getElementById('s6-sub-color').value);
   fd.append('whisper_model', document.getElementById('s6-whisper').value);
+  fd.append('show_name', document.getElementById('s6-show-name').value.trim());
 
   s6RunBtn.disabled = true;
   setStatus(s6StatusEl, `Starting ${excelFiles.length} pair(s)…`);
@@ -3969,6 +4766,8 @@ s6RunBtn.addEventListener('click', async () => {
     if (!res.ok) { setStatus(s6StatusEl, d.error || 'Server error', 'err'); s6RunBtn.disabled = false; return; }
     jobId = d.job_id;
   } catch(e) { setStatus(s6StatusEl, 'Network error: ' + e.message, 'err'); s6RunBtn.disabled = false; return; }
+
+  window._pauseBtn && window._pauseBtn.show('s6', jobId);
 
   setStatus(s6StatusEl, 'Running…');
   if (s6Poll) clearInterval(s6Poll);
@@ -4002,7 +4801,7 @@ s6RunBtn.addEventListener('click', async () => {
   const es = new EventSource(`/api/stream/${jobId}`);
   es.onmessage = e => logLine(s6LogEl, e.data);
   es.addEventListener('done', async () => {
-    es.close(); s6RunBtn.disabled = false;
+    es.close(); s6RunBtn.disabled = false; window._pauseBtn && window._pauseBtn.hide('s6');
     if (s6Poll) { clearInterval(s6Poll); s6Poll = null; }
     try {
       const r = await fetch(`/api/status/${jobId}`);
@@ -4015,20 +4814,25 @@ s6RunBtn.addEventListener('click', async () => {
         if (outputs.length) {
           let html = `<div class="file-section"><h4>Generated Videos (${outputs.length})</h4>`;
           outputs.forEach(name => {
+            const url = `/api/stage6/download/${jobId}?filename=${encodeURIComponent(name)}`;
             html += `<div class="file-row"><span class="fname">${name}</span>
-              <a class="dl-btn" href="/api/stage6/download/${jobId}?filename=${encodeURIComponent(name)}" download="${name}">Download</a></div>`;
+              <a class="dl-btn" href="${url}" download="${name}">Download</a></div>
+              <video controls style="width:100%;border-radius:10px;margin:6px 0 14px;max-height:300px;background:#000" src="${url}">
+                Your browser does not support the video tag.
+              </video>`;
           });
           html += '</div>';
           html += tokenSummaryHtml(d.tokens, false, d.file_tokens, d.total_cost);
           s6FilesEl.innerHTML = html;
           switchTab(s6Right, 's6-files-pane');
+          notifyJobDone('Stage 6 Complete', `${outputs.length} video(s) generated`);
         }
       } else {
         setStatus(s6StatusEl, 'Pipeline failed — check the log.', 'err');
       }
     } catch(_) { setStatus(s6StatusEl, 'Could not fetch results.', 'err'); }
   });
-  es.onerror = () => { es.close(); s6RunBtn.disabled = false; setStatus(s6StatusEl, 'Stream error.', 'err'); };
+  es.onerror = () => { es.close(); s6RunBtn.disabled = false; window._pauseBtn && window._pauseBtn.hide('s6'); setStatus(s6StatusEl, 'Stream error.', 'err'); };
 });
 
 // ═══════════════════════════════════════ Pipeline ═════════════════════════════
@@ -4056,6 +4860,7 @@ s6RunBtn.addEventListener('click', async () => {
       const dropText = pipeDrop.querySelector('.dash-drop-text');
       if (dropText) dropText.innerHTML = pipeFiles.length + ' file(s) selected &mdash; <b>browse</b> to change';
       pipeFileList.innerHTML = pipeFiles.map(f => '<span class="file-tag">' + f.name + '</span>').join('');
+      updateCostEstimate();
     });
     pipeDrop.addEventListener('click', () => {
       const inp = document.createElement('input');
@@ -4065,8 +4870,75 @@ s6RunBtn.addEventListener('click', async () => {
         const dropText = pipeDrop.querySelector('.dash-drop-text');
         if (dropText) dropText.innerHTML = pipeFiles.length + ' file(s) selected &mdash; <b>browse</b> to change';
         pipeFileList.innerHTML = pipeFiles.map(f => '<span class="file-tag">' + f.name + '</span>').join('');
+        document.getElementById('pipe-cost-estimate').classList.remove('pipe-est-hidden');
+        updateCostEstimate();
       };
       inp.click();
+    });
+  }
+
+  // ── Cost estimator ──────────────────────────────────────────────────────────
+  async function updateCostEstimate() {
+    if (!pipeFiles.length) return;
+    try {
+      const charCounts = pipeFiles.map(f => {
+        const ext = f.name.split('.').pop().toLowerCase();
+        return Math.round(f.size * ((ext === 'docx' || ext === 'doc') ? 0.55 : 0.9));
+      });
+      const r = await fetch('/api/estimate', { method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ char_counts: charCounts, stages: [1,2,3,4,5] }) });
+      const d = await r.json();
+      const fmt = v => (v != null && v !== false) ? `$${Number(v).toFixed(2)}` : '—';
+      document.getElementById('pipe-est-total').textContent = fmt(d.total);
+      document.getElementById('pipe-est-s1').textContent = fmt(d.estimates?.stage1);
+      document.getElementById('pipe-est-s2').textContent = fmt(d.estimates?.stage2);
+      document.getElementById('pipe-est-s3').textContent = fmt(d.estimates?.stage3);
+      document.getElementById('pipe-est-s4').textContent = fmt(d.estimates?.stage4);
+      document.getElementById('pipe-est-s5').textContent = fmt(d.estimates?.stage5);
+      if (d.total_shots) document.getElementById('pipe-est-shots').textContent = `~${d.total_shots} shots`;
+    } catch(e) { document.getElementById('pipe-est-total').textContent = 'error'; console.error('estimate:', e); }
+  }
+
+  // ── Resume pipeline ─────────────────────────────────────────────────────────
+  const pipeResumeBtn = document.getElementById('pipe-resume-btn');
+  const pipeResumeStatus = document.getElementById('pipe-resume-status');
+  if (pipeResumeBtn) {
+    pipeResumeBtn.addEventListener('click', async () => {
+      const showName = document.getElementById('pipe-resume-show').value.trim();
+      const startFrom = document.getElementById('pipe-resume-stage').value;
+      if (!showName) { pipeResumeStatus.style.color = '#e53e3e'; pipeResumeStatus.textContent = 'Enter a show name.'; return; }
+      pipeResumeBtn.disabled = true;
+      pipeResumeStatus.style.color = 'var(--text-muted)'; pipeResumeStatus.textContent = 'Loading files from library…';
+      try {
+        const r = await fetch('/api/pipeline/resume', { method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ show_name: showName, start_from: startFrom }) });
+        const d = await r.json();
+        if (!r.ok) { pipeResumeStatus.style.color = '#e53e3e'; pipeResumeStatus.textContent = d.error || 'Resume failed'; pipeResumeBtn.disabled = false; return; }
+        const jobId = d.job_id;
+        pipeResumeStatus.style.color = '#3fb950'; pipeResumeStatus.textContent = `Resumed — job ${jobId.slice(0,8)}…`;
+        // Wire into the main pipeline dashboard
+        if (window._pauseBtn) window._pauseBtn.show('pipe', jobId);
+        resetDashForNewRun();
+        pipeStartTime.value = Date.now();
+        if (pipeTimerInterval) clearInterval(pipeTimerInterval);
+        pipeTimerInterval = setInterval(() => {
+          const e = Math.floor((Date.now() - pipeStartTime.value) / 1000);
+          const mm = String(Math.floor(e/60)).padStart(2,'0'), ss = String(e%60).padStart(2,'0');
+          document.getElementById('dash-elapsed').textContent = mm + ':' + ss;
+        }, 1000);
+        if (pipePollId) clearInterval(pipePollId);
+        pipePollId = startPoll(jobId, sd => {
+          updateDashTimeline(sd);
+          if (sd.status === 'done' || sd.status === 'failed' || sd.status === 'cancelled') {
+            clearInterval(pipePollId); pipePollId = null;
+            clearInterval(pipeTimerInterval); pipeTimerInterval = null;
+            if (window._pauseBtn) window._pauseBtn.hide('pipe');
+            pipeResumeBtn.disabled = false;
+            if (sd.status === 'done') { setStatus(pipeStatusEl, 'Pipeline complete!', 'ok'); notifyJobDone('Pipeline Complete', `Show "${showName}" fully processed`); }
+            else { setStatus(pipeStatusEl, sd.status === 'cancelled' ? 'Pipeline stopped.' : 'Pipeline failed.', 'err'); }
+          }
+        });
+      } catch(e) { pipeResumeStatus.style.color = '#e53e3e'; pipeResumeStatus.textContent = 'Network error'; pipeResumeBtn.disabled = false; }
     });
   }
 
@@ -4192,6 +5064,7 @@ s6RunBtn.addEventListener('click', async () => {
       }
       const jobId = d.job_id;
       window._pipeJobId = jobId;
+      if (window._pauseBtn) window._pauseBtn.show('pipe', jobId);
 
       pipeES = new EventSource('/api/stream/' + jobId);
       pipeES.onmessage = e => { logLine(pipeLogEl, e.data); };
@@ -4204,14 +5077,19 @@ s6RunBtn.addEventListener('click', async () => {
         }
         // Image review panels
         if (window._pipelineReviewUpdate) window._pipelineReviewUpdate(sd);
-        if (sd.status === 'done' || sd.status === 'failed') {
+        if (sd.status === 'done' || sd.status === 'failed' || sd.status === 'cancelled') {
           if (pipePollId) { clearInterval(pipePollId); pipePollId = null; }
           if (pipeTimerInterval) { clearInterval(pipeTimerInterval); pipeTimerInterval = null; }
+          if (window._pauseBtn) window._pauseBtn.hide('pipe');
           pipeRunBtn.disabled = false;
           pipeRunBtn.querySelector('svg').style.display = '';
           pipeRunBtn.childNodes[pipeRunBtn.childNodes.length - 1].textContent = ' Run Pipeline';
-          if (sd.status === 'done') {
+          if (sd.status === 'cancelled') {
+            setStatus(pipeStatusEl, 'Pipeline stopped.', 'err');
+            document.getElementById('dash-stage').textContent = 'Stopped';
+          } else if (sd.status === 'done') {
             setStatus(pipeStatusEl, 'Pipeline complete!', 'ok');
+            notifyJobDone('Pipeline Complete', `Show "${sd.show_name || ''}" fully processed`);
             // Mark all timeline nodes done
             ['dash-tl-1','dash-tl-2','dash-tl-34','dash-tl-5'].forEach(id => {
               const node = document.getElementById(id);
@@ -4254,6 +5132,7 @@ s6RunBtn.addEventListener('click', async () => {
       });
     } catch(e) {
       setStatus(pipeStatusEl, 'Failed to start pipeline: ' + e.message, 'err');
+      if (window._pauseBtn) window._pauseBtn.hide('pipe');
       pipeRunBtn.disabled = false;
       pipeRunBtn.querySelector('svg').style.display = '';
       pipeRunBtn.childNodes[pipeRunBtn.childNodes.length - 1].textContent = ' Run Pipeline';
@@ -4310,9 +5189,9 @@ s6RunBtn.addEventListener('click', async () => {
         const dy = particles[i].y - particles[j].y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < CONNECT_DIST) {
-          const alpha = (1 - dist / CONNECT_DIST) * 0.15;
+          const alpha = (1 - dist / CONNECT_DIST) * 0.35;
           ctx.strokeStyle = `rgba(88, 166, 255, ${alpha})`;
-          ctx.lineWidth = 0.5;
+          ctx.lineWidth = 0.7;
           ctx.beginPath();
           ctx.moveTo(particles[i].x, particles[i].y);
           ctx.lineTo(particles[j].x, particles[j].y);
@@ -4325,7 +5204,7 @@ s6RunBtn.addEventListener('click', async () => {
     particles.forEach(p => {
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(88, 166, 255, 0.4)';
+      ctx.fillStyle = 'rgba(88, 166, 255, 0.75)';
       ctx.fill();
     });
 
@@ -4640,6 +5519,689 @@ function updateStageStats(prefix, sd) {
   };
 })();
 
+// ── Modals (must be injected before any IIFE queries them) ───────────────────
+document.body.insertAdjacentHTML('beforeend', `
+<!-- File delete confirmation modal -->
+<div id="del-file-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:2000;align-items:center;justify-content:center">
+  <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:16px;padding:28px 26px;max-width:380px;width:90%;box-shadow:0 32px 80px rgba(0,0,0,.6)">
+    <div style="width:40px;height:40px;border-radius:10px;background:rgba(229,62,62,.12);border:1px solid rgba(229,62,62,.3);display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:14px">🗑</div>
+    <h3 style="margin:0 0 5px;font-size:15px;font-weight:700;color:var(--text)">Delete File?</h3>
+    <p id="dfm-filename" style="margin:0 0 8px;font-size:12px;font-weight:600;color:var(--accent);word-break:break-all;font-family:monospace"></p>
+    <p style="margin:0 0 22px;font-size:12px;color:var(--text-muted);line-height:1.55">Permanently removes this file from the database. This cannot be undone.</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button id="dfm-cancel-btn" style="padding:8px 18px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-size:12px;font-weight:600;cursor:pointer;transition:border-color .15s,color .15s" onmouseover="this.style.borderColor='var(--text-muted)';this.style.color='var(--text)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-muted)'">Cancel</button>
+      <button id="dfm-confirm-btn" style="padding:8px 18px;border-radius:8px;border:none;background:#e53e3e;color:#fff;font-size:12px;font-weight:700;cursor:pointer;transition:background .15s" onmouseover="this.style.background='#c53030'" onmouseout="this.style.background='#e53e3e'">Delete File</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pause confirmation modal -->
+<div id="pause-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:2000;align-items:center;justify-content:center">
+  <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:16px;padding:28px 26px;max-width:400px;width:90%;box-shadow:0 32px 80px rgba(0,0,0,.6)">
+    <div style="width:40px;height:40px;border-radius:10px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:14px">⏸</div>
+    <h3 style="margin:0 0 8px;font-size:15px;font-weight:700;color:var(--text)">Job Paused</h3>
+    <p style="margin:0 0 22px;font-size:12px;color:var(--text-muted);line-height:1.55">The current task will finish before pausing. Choose what to do next.</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button id="pm-cancel-btn" style="padding:8px 18px;border-radius:8px;border:1px solid rgba(229,62,62,.5);background:transparent;color:#e53e3e;font-size:12px;font-weight:600;cursor:pointer;transition:background .15s" onmouseover="this.style.background='rgba(229,62,62,.1)'" onmouseout="this.style.background='transparent'">Stop Job</button>
+      <button id="pm-resume-btn" style="padding:8px 18px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:700;cursor:pointer;transition:opacity .15s" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">▶ Continue Running</button>
+    </div>
+  </div>
+</div>
+
+<!-- Image lightbox -->
+<div id="img-lightbox" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:2000;align-items:center;justify-content:center;flex-direction:column;gap:14px">
+  <button id="lb-close" style="position:absolute;top:16px;right:20px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:20px;cursor:pointer;line-height:1;width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center">×</button>
+  <img id="lb-img" style="max-width:90vw;max-height:82vh;border-radius:12px;object-fit:contain;box-shadow:0 12px 60px rgba(0,0,0,.7)" src="" alt="">
+  <div id="lb-caption" style="color:rgba(255,255,255,.7);font-size:12px;text-align:center;max-width:600px;font-weight:500"></div>
+</div>
+
+<!-- History drawer -->
+<div id="history-drawer" style="display:none;position:fixed;inset:0;z-index:1800;background:rgba(0,0,0,0);transition:background .7s ease">
+  <div id="history-panel" style="position:absolute;right:0;top:0;bottom:0;width:min(520px,100vw);background:var(--bg-surface);border-left:1px solid var(--border);display:flex;flex-direction:column;box-shadow:-24px 0 60px rgba(0,0,0,.4);transform:translateX(100%);transition:transform .7s cubic-bezier(.22,1,.36,1)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:var(--text)">&#128203; Run History</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Last 60 jobs across all stages</div>
+      </div>
+      <button id="hist-close-btn" style="background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text-muted);font-size:18px;cursor:pointer;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center">×</button>
+    </div>
+    <div id="hist-list" style="flex:1;overflow-y:auto;padding:12px 16px">
+      <p style="font-size:12px;color:var(--text-muted);text-align:center;padding-top:40px">Loading…</p>
+    </div>
+  </div>
+</div>
+`);
+
+// ═══════════════════════════════════════ Library ═══════════════════════════════
+
+(function() {
+  let libShowId      = null;
+  let libShowName    = null;
+  let libActiveStage = null;
+
+  function fmtSize(b) {
+    if (!b) return '';
+    if (b < 1024)       return b + ' B';
+    if (b < 1024*1024)  return (b/1024).toFixed(1) + ' KB';
+    return (b/(1024*1024)).toFixed(1) + ' MB';
+  }
+
+  function fmtBasename(path) {
+    return path.split('/').pop();
+  }
+
+  const STAGE_ORDER  = ['scripts','stage1','stage2','stage3','stage4','stage5','stage6','pipeline'];
+  const STAGE_LABELS = { scripts:'Scripts', stage1:'Stage 1', stage2:'Stage 2', stage3:'Stage 3', stage4:'Stage 4', stage5:'Stage 5', stage6:'Stage 6', pipeline:'Pipeline' };
+
+  let _allShows = [];
+
+  function libRenderShows(shows) {
+    const list = document.getElementById('lib-shows-list');
+    if (!shows.length) {
+      list.innerHTML = '<p style="padding:8px;font-size:12px;color:var(--text-muted)">No shows found.</p>';
+      return;
+    }
+    list.innerHTML = shows.map(s => {
+      const date = (s.created_at || '').slice(0, 10);
+      const meta = [s.file_count ? `${s.file_count} file${s.file_count!==1?'s':''}` : '', s.stage_count ? `${s.stage_count} stage${s.stage_count!==1?'s':''}` : ''].filter(Boolean).join(' · ');
+      return `<div class="lib-show-row" data-id="${s.id}" data-name="${s.name}"
+        style="padding:10px 12px;margin-bottom:6px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);cursor:pointer;transition:border-color .15s,background .15s;position:relative">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px">
+          <div style="font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1">${s.name}</div>
+          <button class="lib-del" data-id="${s.id}" title="Delete"
+                  style="flex-shrink:0;background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:15px;padding:0;line-height:1;opacity:.4;margin-top:-1px"
+                  onmouseover="this.style.opacity=1;this.style.color='#e53e3e'" onmouseout="this.style.opacity=.4;this.style.color='var(--text-muted)'">×</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:5px;align-items:center">
+          <span style="font-size:10px;color:var(--text-muted)">${date}</span>
+          ${meta ? `<span style="font-size:10px;color:var(--border)">·</span><span style="font-size:10px;color:var(--text-muted)">${meta}</span>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+
+    list.querySelectorAll('.lib-show-row').forEach(el => {
+      el.addEventListener('click', e => {
+        if (e.target.closest('.lib-del')) return;
+        list.querySelectorAll('.lib-show-row').forEach(r => { r.style.background = 'var(--bg2)'; r.style.borderColor = 'var(--border)'; });
+        el.style.background = 'var(--hover)'; el.style.borderColor = 'var(--accent)';
+        libSelectShow(+el.dataset.id, el.dataset.name);
+      });
+      el.querySelector('.lib-del').addEventListener('click', async e => {
+        e.stopPropagation();
+        if (!confirm(`Delete "${el.dataset.name}" and all its saved files?`)) return;
+        await fetch(`/api/db/shows/${el.dataset.id}`, { method: 'DELETE' });
+        if (libShowId === +el.dataset.id) libClearRight();
+        libLoadShows();
+      });
+    });
+  }
+
+  // ── Load shows list ──────────────────────────────────────────────────────────
+  async function libLoadShows() {
+    const list = document.getElementById('lib-shows-list');
+    if (!list) return;
+    list.innerHTML = '<p style="padding:8px;font-size:12px;color:var(--text-muted)">Loading…</p>';
+    try {
+      _allShows = await (await fetch('/api/db/shows')).json();
+      if (!_allShows.length) {
+        list.innerHTML = '<p style="padding:8px;font-size:12px;color:var(--text-muted)">No shows yet.<br><br>Run any stage with a Show Name to save files here.</p>';
+        return;
+      }
+      libRenderShows(_allShows);
+    } catch(e) {
+      list.innerHTML = '<p style="padding:8px;font-size:12px;color:#e53e3e">Error loading shows.</p>';
+    }
+  }
+
+  // Search
+  const libSearchEl = document.getElementById('lib-search');
+  if (libSearchEl) libSearchEl.addEventListener('input', () => {
+    const q = libSearchEl.value.trim().toLowerCase();
+    libRenderShows(q ? _allShows.filter(s => s.name.toLowerCase().includes(q)) : _allShows);
+  });
+
+  function libClearRight() {
+    libShowId = null; libShowName = null; libActiveStage = null;
+    document.getElementById('lib-header-text').textContent = 'Select a show';
+    document.getElementById('lib-stage-tabs').innerHTML = '';
+    document.getElementById('lib-files-list').innerHTML = '<p style="font-size:12px;color:var(--text-muted)">Select a show to browse its files.</p>';
+  }
+
+  // ── Select show → load stages ────────────────────────────────────────────────
+  async function libSelectShow(showId, showName) {
+    libShowId = showId; libShowName = showName; libActiveStage = null;
+    document.getElementById('lib-header-text').textContent = showName;
+    document.getElementById('lib-files-list').innerHTML = '<p style="font-size:12px;color:var(--text-muted)">Loading…</p>';
+    document.getElementById('lib-stage-tabs').innerHTML = '';
+    try {
+      const stages = await (await fetch(`/api/db/shows/${showId}/stages`)).json();
+      if (!stages.length) {
+        document.getElementById('lib-files-list').innerHTML = '<p style="font-size:12px;color:var(--text-muted)">No files saved for this show yet.</p>';
+        return;
+      }
+      const tabsEl = document.getElementById('lib-stage-tabs');
+      const sorted = [...stages].sort((a,b) => {
+        const ai = STAGE_ORDER.indexOf(a.stage), bi = STAGE_ORDER.indexOf(b.stage);
+        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+      });
+      tabsEl.innerHTML = sorted.map(s => `
+        <button class="lib-stab" data-stage="${s.stage}"
+                style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px 5px 13px;border-radius:20px;border:1px solid var(--border);background:var(--bg-surface);cursor:pointer;font-size:11px;font-weight:600;color:var(--text-muted);white-space:nowrap;transition:all .18s">
+          ${STAGE_LABELS[s.stage]||s.stage}
+          <span class="lib-stab-count" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:17px;padding:0 5px;border-radius:9px;background:rgba(255,255,255,.07);color:var(--text-muted);font-size:10px;font-weight:700;font-family:'JetBrains Mono',monospace;transition:background .18s,color .18s">${s.file_count}</span>
+        </button>`).join('');
+      tabsEl.querySelectorAll('.lib-stab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          tabsEl.querySelectorAll('.lib-stab').forEach(b => {
+            b.style.background = 'var(--bg-surface)'; b.style.color = 'var(--text-muted)';
+            b.style.borderColor = 'var(--border)'; b.style.boxShadow = 'none';
+            const bc = b.querySelector('.lib-stab-count');
+            if (bc) { bc.style.background = 'rgba(255,255,255,.07)'; bc.style.color = 'var(--text-muted)'; }
+          });
+          btn.style.background = 'rgba(88,166,255,.1)'; btn.style.color = 'var(--accent)';
+          btn.style.borderColor = 'rgba(88,166,255,.45)'; btn.style.boxShadow = '0 0 10px rgba(88,166,255,.15)';
+          const bc = btn.querySelector('.lib-stab-count');
+          if (bc) { bc.style.background = 'rgba(88,166,255,.2)'; bc.style.color = 'var(--accent)'; }
+          libLoadFiles(showId, showName, btn.dataset.stage);
+        });
+      });
+      tabsEl.querySelector('.lib-stab').click();
+    } catch(e) {
+      document.getElementById('lib-files-list').innerHTML = '<p style="font-size:12px;color:#e53e3e">Error loading stages.</p>';
+    }
+  }
+
+  // ── Load files for a stage ───────────────────────────────────────────────────
+  async function libLoadFiles(showId, showName, stage) {
+    libActiveStage = stage;
+    const filesEl = document.getElementById('lib-files-list');
+    filesEl.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">Loading…</p>';
+    try {
+      let files = await (await fetch(`/api/db/shows/${showId}/files?stage=${stage}`)).json();
+      // Stage 4/5: only show Excel files in Library (images are reference material)
+      if (stage === 'stage4' || stage === 'stage5') {
+        files = files.filter(f => /\.xlsx$/i.test(f.filename));
+      }
+      // Sync the tab badge to the actual displayed count
+      const activeStabCount = document.querySelector(`.lib-stab[data-stage="${stage}"] .lib-stab-count`);
+      if (activeStabCount) activeStabCount.textContent = files.length;
+      if (!files.length) { filesEl.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">No files in this stage.</p>'; return; }
+      const fileIcon = n => {
+        const ext = (n.split('.').pop()||'').toLowerCase();
+        if (ext === 'xlsx' || ext === 'xls') return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3fb950" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>';
+        if (ext === 'mp4' || ext === 'mov') return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+        if (ext === 'mp3' || ext === 'wav') return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
+        if (ext === 'png' || ext === 'jpg' || ext === 'jpeg' || ext === 'webp') return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
+        if (ext === 'md') return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fb923c" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+        return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+      };
+      // Add "Download All as ZIP" button above the file list when there are files
+      const libZipBtn = document.getElementById('lib-zip-btn');
+      if (libZipBtn) {
+        libZipBtn.style.display = files.length ? 'flex' : 'none';
+        libZipBtn.onclick = () => {
+          window.location.href = `/api/db/shows/${showId}/files/zip?stage=${stage}`;
+        };
+      }
+
+      filesEl.innerHTML = `<div style="display:flex;flex-direction:column;gap:5px">` +
+        files.map(f => {
+          const name = fmtBasename(f.filename);
+          const folder = f.filename.includes('/') ? f.filename.split('/').slice(0,-1).join('/') + '/' : '';
+          const dateStr = f.created_at ? f.created_at.slice(0, 16).replace('T', ' ') : '';
+          return `
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;transition:border-color .15s,box-shadow .15s"
+               onmouseover="this.style.borderColor='rgba(88,166,255,.3)';this.style.boxShadow='0 0 10px rgba(88,166,255,.07)'"
+               onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='none'">
+            <div style="flex-shrink:0;width:32px;height:32px;border-radius:8px;background:rgba(88,166,255,.07);border:1px solid rgba(88,166,255,.12);display:flex;align-items:center;justify-content:center">
+              ${fileIcon(name)}
+            </div>
+            <div style="flex:1;min-width:0">
+              ${folder ? `<div style="font-size:10px;color:var(--text-muted);margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.7">${folder}</div>` : ''}
+              <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+              <div style="font-size:10px;color:var(--text-muted);margin-top:3px;display:flex;gap:10px">
+                ${f.file_size ? `<span>${fmtSize(f.file_size)}</span>` : ''}
+                ${dateStr ? `<span style="opacity:.7">${dateStr}</span>` : ''}
+              </div>
+            </div>
+            <a href="/api/db/file/${f.id}" download="${name}"
+               style="flex-shrink:0;padding:6px 12px;background:rgba(88,166,255,.1);color:var(--accent);border:1px solid rgba(88,166,255,.25);border-radius:7px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap;transition:background .15s,border-color .15s"
+               onmouseover="this.style.background='rgba(88,166,255,.2)';this.style.borderColor='var(--accent)'"
+               onmouseout="this.style.background='rgba(88,166,255,.1)';this.style.borderColor='rgba(88,166,255,.25)'">
+              ↓ Download
+            </a>
+            <button class="lib-del-file" data-id="${f.id}" data-name="${name}"
+               style="flex-shrink:0;width:30px;height:30px;padding:0;background:transparent;border:1px solid rgba(229,62,62,.35);color:#e53e3e;border-radius:7px;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s"
+               onmouseover="this.style.background='rgba(229,62,62,.12)';this.style.borderColor='#e53e3e';this.style.boxShadow='0 0 0 3px rgba(229,62,62,.1)'"
+               onmouseout="this.style.background='transparent';this.style.borderColor='rgba(229,62,62,.35)';this.style.boxShadow='none'"
+               title="Delete file">🗑</button>
+          </div>`;
+        }).join('') + `</div>`;
+
+      // Wire delete buttons
+      filesEl.querySelectorAll('.lib-del-file').forEach(btn => {
+        btn.addEventListener('click', () => {
+          window._libDelFile(+btn.dataset.id, btn.dataset.name, showId, showName, stage);
+        });
+      });
+
+    } catch(e) {
+      filesEl.innerHTML = '<p style="font-size:12px;color:#e53e3e">Error loading files.</p>';
+    }
+  }
+
+  // ── Upload feature ───────────────────────────────────────────────────────────
+  const libAddBtn    = document.getElementById('lib-add-btn');
+  const libUpPanel   = document.getElementById('lib-upload-panel');
+  const libUpSubmit  = document.getElementById('lib-upload-submit');
+  const libUpStatus  = document.getElementById('lib-upload-status');
+
+  if (libAddBtn) libAddBtn.addEventListener('click', () => {
+    const isOpen = libUpPanel.style.display !== 'none';
+    libUpPanel.style.display = isOpen ? 'none' : 'block';
+    if (!isOpen) {
+      if (libShowName) document.getElementById('lib-upload-show').value = libShowName;
+      if (libActiveStage) document.getElementById('lib-upload-stage').value = libActiveStage;
+      libUpStatus.textContent = '';
+    }
+  });
+
+  if (libUpSubmit) libUpSubmit.addEventListener('click', async () => {
+    const showName = document.getElementById('lib-upload-show').value.trim();
+    const stage    = document.getElementById('lib-upload-stage').value;
+    const files    = Array.from(document.getElementById('lib-upload-files').files);
+    if (!showName) { libUpStatus.style.color = '#e53e3e'; libUpStatus.textContent = 'Show name is required.'; return; }
+    if (!files.length) { libUpStatus.style.color = '#e53e3e'; libUpStatus.textContent = 'Select at least one file.'; return; }
+
+    libUpSubmit.disabled = true;
+    libUpStatus.style.color = 'var(--text-muted)'; libUpStatus.textContent = 'Uploading…';
+    const fd = new FormData();
+    fd.append('show_name', showName); fd.append('stage', stage);
+    files.forEach(f => fd.append('files', f));
+    try {
+      const r = await fetch('/api/db/upload', { method: 'POST', body: fd });
+      const d = await r.json();
+      if (!r.ok) { libUpStatus.style.color = '#e53e3e'; libUpStatus.textContent = d.error || 'Upload failed'; }
+      else {
+        libUpStatus.style.color = '#48bb78';
+        libUpStatus.textContent = `✓ Saved ${d.saved} file(s) to "${d.show_name}" / ${stage}`;
+        document.getElementById('lib-upload-files').value = '';
+        libLoadShows();
+        if (libShowId) libSelectShow(libShowId, libShowName);
+      }
+    } catch(e) { libUpStatus.style.color = '#e53e3e'; libUpStatus.textContent = 'Network error'; }
+    libUpSubmit.disabled = false;
+  });
+
+  // ── Init ─────────────────────────────────────────────────────────────────────
+  const _libRefreshBtn = document.getElementById('lib-refresh-btn');
+  if (_libRefreshBtn) _libRefreshBtn.addEventListener('click', () => {
+    libLoadShows();
+    if (libShowId) libSelectShow(libShowId, libShowName);
+  });
+
+  document.addEventListener('click', e => {
+    if (e.target.closest('[data-stage="library-view"]')) libLoadShows();
+  });
+
+  // ── File delete ──────────────────────────────────────────────────────────────
+  const delFileModal   = document.getElementById('del-file-modal');
+  const dfmFilename    = document.getElementById('dfm-filename');
+  const dfmCancelBtn   = document.getElementById('dfm-cancel-btn');
+  const dfmConfirmBtn  = document.getElementById('dfm-confirm-btn');
+  let _delFilePending  = null;
+
+  window._libDelFile = function(fileId, fileName, showId, showName, stage) {
+    _delFilePending = { fileId, showId, showName, stage };
+    dfmFilename.textContent = fileName;
+    delFileModal.style.display = 'flex';
+  };
+
+  dfmCancelBtn.addEventListener('click', () => {
+    delFileModal.style.display = 'none';
+    _delFilePending = null;
+  });
+
+  dfmConfirmBtn.addEventListener('click', async () => {
+    if (!_delFilePending) return;
+    const { fileId, showId, showName, stage } = _delFilePending;
+    delFileModal.style.display = 'none';
+    _delFilePending = null;
+    dfmConfirmBtn.disabled = true;
+    try {
+      const r = await fetch(`/api/db/files/${fileId}`, { method: 'DELETE' });
+      if (!r.ok) { const d = await r.json(); alert('Delete failed: ' + (d.error || r.status)); return; }
+      // Reload the file list and refresh show cards (file count changed)
+      libLoadFiles(showId, showName, stage);
+      libLoadShows();
+    } finally {
+      dfmConfirmBtn.disabled = false;
+    }
+  });
+
+  // Expose for external navigation
+  window._libAPI = { loadShows: libLoadShows };
+})();
+
+// ── Pause / Cancel modal ─────────────────────────────────────────────────────
+(function() {
+  let _pausedJobId = null;
+  let _pausedRunBtn = null;
+  let _pausedPauseBtn = null;
+
+  const modal = document.getElementById('pause-modal');
+  const resumeBtn = document.getElementById('pm-resume-btn');
+  const cancelBtn = document.getElementById('pm-cancel-btn');
+
+  // Wire every pause button
+  document.querySelectorAll('.pause-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const jobId = btn.dataset.job;
+      if (!jobId) return;
+      _pausedJobId   = jobId;
+      _pausedPauseBtn = btn;
+      const stageId = btn.id.replace('-pause-btn', '');  // e.g. "s3"
+      _pausedRunBtn  = document.getElementById(`${stageId}-run-btn`);
+      btn.disabled = true;
+      btn.textContent = 'Pausing…';
+      try {
+        await fetch(`/api/jobs/${jobId}/pause`, { method: 'POST' });
+        modal.style.display = 'flex';
+      } catch(e) {
+        btn.disabled = false; btn.textContent = '⏸ Pause';
+      }
+    });
+  });
+
+  resumeBtn.addEventListener('click', async () => {
+    if (!_pausedJobId) return;
+    modal.style.display = 'none';
+    _pausedPauseBtn.disabled = false; _pausedPauseBtn.textContent = '⏸ Pause';
+    await fetch(`/api/jobs/${_pausedJobId}/resume`, { method: 'POST' });
+    _pausedJobId = null;
+  });
+
+  cancelBtn.addEventListener('click', async () => {
+    if (!_pausedJobId) return;
+    modal.style.display = 'none';
+    await fetch(`/api/jobs/${_pausedJobId}/cancel`, { method: 'POST' });
+    if (_pausedRunBtn)  { _pausedRunBtn.disabled = false; }
+    if (_pausedPauseBtn) { _pausedPauseBtn.style.display = 'none'; _pausedPauseBtn.dataset.job = ''; }
+    _pausedJobId = null;
+  });
+
+  // Expose so stage run handlers can show/hide the pause button
+  window._pauseBtn = {
+    show(stagePrefix, jobId) {
+      const btn = document.getElementById(`${stagePrefix}-pause-btn`);
+      if (btn) { btn.style.display = ''; btn.dataset.job = jobId; btn.disabled = false; btn.textContent = '⏸ Pause'; }
+    },
+    hide(stagePrefix) {
+      const btn = document.getElementById(`${stagePrefix}-pause-btn`);
+      if (btn) { btn.style.display = 'none'; btn.dataset.job = ''; }
+    }
+  };
+})();
+
+// ── Image lightbox ───────────────────────────────────────────────────────────
+(function() {
+  const lb = document.getElementById('img-lightbox');
+  const lbImg = document.getElementById('lb-img');
+  const lbCaption = document.getElementById('lb-caption');
+  lb.addEventListener('click', e => { if (e.target === lb) lb.style.display = 'none'; });
+  document.getElementById('lb-close').addEventListener('click', () => lb.style.display = 'none');
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') lb.style.display = 'none'; });
+
+  window.openLightbox = function(src, caption) {
+    lbImg.src = src; lbCaption.textContent = caption || '';
+    lb.style.display = 'flex';
+  };
+})();
+
+// ── Per-stage cost estimators ─────────────────────────────────────────────────
+(function() {
+  function fileCharCount(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    return Math.round(file.size * ((ext === 'docx' || ext === 'doc') ? 0.55 : 0.9));
+  }
+
+  async function fetchEstimate(charCounts, stages) {
+    try {
+      const r = await fetch('/api/estimate', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ char_counts: charCounts, stages })
+      });
+      return (await r.json()).total || 0;
+    } catch(_) { return 0; }
+  }
+
+  function showEst(elId, valElId, cost) {
+    const wrap = document.getElementById(elId);
+    const val  = document.getElementById(valElId);
+    if (!wrap || !val) return;
+    wrap.style.display = 'flex';
+    val.textContent = cost ? `~$${cost.toFixed(2)}` : '—';
+  }
+
+  // Stage 1 — wire to file input
+  const s1Input = document.getElementById('s1-file-input');
+  if (s1Input) s1Input.addEventListener('change', async () => {
+    const files = Array.from(s1Input.files);
+    if (!files.length) return;
+    const cost = await fetchEstimate(files.map(fileCharCount), [1]);
+    showEst('s1-cost-est', 's1-est-val', cost);
+  });
+
+  // Stage 2 — wire to file input
+  const s2Input = document.getElementById('s2-file-input');
+  if (s2Input) s2Input.addEventListener('change', async () => {
+    const files = Array.from(s2Input.files);
+    if (!files.length) return;
+    const cost = await fetchEstimate(files.map(fileCharCount), [2]);
+    showEst('s2-cost-est', 's2-est-val', cost);
+  });
+
+  // Stage 3 — wire to Excel input (use file size as proxy for script length)
+  const s3Input = document.getElementById('s3-excel-input');
+  if (s3Input) s3Input.addEventListener('change', async () => {
+    const files = Array.from(s3Input.files);
+    if (!files.length) return;
+    // Excel ~2KB per shot row; use size as rough char proxy
+    const cost = await fetchEstimate(files.map(f => Math.round(f.size * 2)), [3]);
+    showEst('s3-cost-est', 's3-est-val', cost);
+  });
+
+  // Stage 5 — wire to Excel input, estimate shots from row count proxy
+  const s5Input = document.getElementById('s5-excel-input');
+  if (s5Input) s5Input.addEventListener('change', () => {
+    const file = s5Input.files[0];
+    if (!file) return;
+    // ~2KB per shot row in an xlsx; $0.02 per shot
+    const estShots = Math.max(10, Math.round(file.size / 2000));
+    const cost = estShots * 0.02;
+    const wrap = document.getElementById('s5-cost-est');
+    const val  = document.getElementById('s5-est-val');
+    if (wrap) wrap.style.display = 'flex';
+    if (val)  val.textContent = `~$${cost.toFixed(2)} (~${estShots} shots × $0.02)`;
+  });
+
+  // Stage 4 — count ## headers in character canvas + location reference markdowns
+  async function updateS4Estimate() {
+    const charInput = document.getElementById('s4-char-input');
+    const locInput  = document.getElementById('s4-loc-input');
+    const val       = document.getElementById('s4-est-val');
+    if (!val) return;
+    let count = 0;
+    for (const input of [charInput, locInput]) {
+      if (!input || !input.files.length) continue;
+      for (const file of input.files) {
+        try {
+          const text = await file.text();
+          count += (text.match(/^##\s/gm) || []).length;
+        } catch(_) {}
+      }
+    }
+    if (count > 0) {
+      const cost = (count * 0.02).toFixed(2);
+      val.innerHTML = `~$${cost} <span style="font-weight:400;opacity:.6">(${count} imgs × $0.02)</span>`;
+    }
+  }
+  const s4CharInput = document.getElementById('s4-char-input');
+  const s4LocInput  = document.getElementById('s4-loc-input');
+  if (s4CharInput) s4CharInput.addEventListener('change', updateS4Estimate);
+  if (s4LocInput)  s4LocInput.addEventListener('change', updateS4Estimate);
+
+  // Also wire Stage 1 drop zone (drag-drop updates the hidden input differently)
+  // Re-check on drop by observing the dz-hint text change — handled via MutationObserver
+  const s1Drop = document.getElementById('s1-drop');
+  if (s1Drop) {
+    s1Drop.addEventListener('drop', () => setTimeout(() => s1Input && s1Input.dispatchEvent(new Event('change')), 100));
+  }
+})();
+
+// ── History panel ────────────────────────────────────────────────────────────
+(function() {
+  const drawer = document.getElementById('history-drawer');
+  const listEl = document.getElementById('hist-list');
+  const closeBtn = document.getElementById('hist-close-btn');
+
+  const STAGE_BADGE = {
+    stage1: {label:'S1', bg:'rgba(88,166,255,.15)', color:'#58a6ff'},
+    stage2: {label:'S2', bg:'rgba(167,139,250,.15)', color:'#a78bfa'},
+    stage3: {label:'S3', bg:'rgba(59,130,246,.15)',  color:'#3b82f6'},
+    stage4: {label:'S4', bg:'rgba(245,158,11,.15)',  color:'#f59e0b'},
+    stage5: {label:'S5', bg:'rgba(52,211,153,.15)',  color:'#34d399'},
+    stage6: {label:'S6', bg:'rgba(236,72,153,.15)',  color:'#ec4899'},
+    pipeline:{label:'P', bg:'rgba(88,166,255,.2)', color:'#58a6ff'},
+  };
+
+  function fmtDur(sec) {
+    if (!sec) return '—';
+    if (sec < 60) return Math.round(sec) + 's';
+    return Math.floor(sec/60) + 'm ' + Math.round(sec%60) + 's';
+  }
+
+  async function loadHistory() {
+    listEl.innerHTML = '<p style="font-size:12px;color:var(--text-muted);text-align:center;padding-top:40px">Loading…</p>';
+    try {
+      const r = await fetch('/api/history');
+      const d = await r.json();
+      const rows = d.history || [];
+      if (!rows.length) {
+        listEl.innerHTML = '<p style="font-size:12px;color:var(--text-muted);text-align:center;padding-top:40px">No runs recorded yet.</p>';
+        return;
+      }
+      listEl.innerHTML = rows.map(row => {
+        const badge = STAGE_BADGE[row.stage] || {label: row.stage, bg: 'rgba(255,255,255,.08)', color: 'var(--text-muted)'};
+        const statusColor = row.status === 'done' ? '#3fb950' : row.status === 'failed' ? '#e53e3e' : row.status === 'flagged' ? '#f59e0b' : 'var(--text-muted)';
+        const statusDot = `<span style="width:6px;height:6px;border-radius:50%;background:${statusColor};display:inline-block;flex-shrink:0"></span>`;
+        const dt = row.created_at ? row.created_at.slice(0,16).replace('T',' ') : '';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-surface);margin-bottom:6px">
+          <span style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:${badge.bg};color:${badge.color};font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;letter-spacing:.3px">${badge.label}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${row.show_name || '—'}</div>
+            <div style="display:flex;gap:8px;margin-top:2px;font-size:10px;color:var(--text-muted);flex-wrap:wrap">
+              ${statusDot} <span style="color:${statusColor}">${row.status}</span>
+              <span>&#x2022; ${dt}</span>
+              ${row.duration_sec ? `<span>&#x2022; ${fmtDur(row.duration_sec)}</span>` : ''}
+            </div>
+          </div>
+          ${row.cost_usd ? `<span style="flex-shrink:0;font-size:11px;font-weight:700;color:#3fb950">$${row.cost_usd.toFixed(4)}</span>` : ''}
+        </div>`;
+      }).join('');
+    } catch(e) {
+      listEl.innerHTML = '<p style="font-size:12px;color:#e53e3e;text-align:center;padding-top:40px">Failed to load history.</p>';
+    }
+  }
+
+  const panel = document.getElementById('history-panel');
+
+  function openDrawer() {
+    drawer.style.display = '';
+    // Force reflow so the transition plays from the initial state
+    panel.getBoundingClientRect();
+    drawer.style.background = 'rgba(0,0,0,.55)';
+    panel.style.transform = 'translateX(0)';
+    loadHistory();
+  }
+
+  function closeDrawer() {
+    drawer.style.background = 'rgba(0,0,0,0)';
+    panel.style.transform = 'translateX(100%)';
+    panel.addEventListener('transitionend', () => { drawer.style.display = 'none'; }, { once: true });
+  }
+
+  window.openHistoryPanel = openDrawer;
+
+  if (closeBtn) closeBtn.addEventListener('click', closeDrawer);
+  drawer.addEventListener('click', e => { if (e.target === drawer) closeDrawer(); });
+})();
+
+// ── Splash screen ────────────────────────────────────────────────────────────
+(function() {
+  const splash = document.getElementById('splash');
+  if (!splash) return;
+
+  // Constellation
+  const canvas = document.getElementById('splash-constellation');
+  const ctx = canvas.getContext('2d');
+  let particles = [], alive = true;
+  const COUNT = 150, CONNECT = 160, SPEED = 0.3;
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+
+  function init() {
+    resize();
+    particles = [];
+    for (let i = 0; i < COUNT; i++) {
+      particles.push({
+        x: Math.random() * canvas.width, y: Math.random() * canvas.height,
+        vx: (Math.random() - 0.5) * SPEED, vy: (Math.random() - 0.5) * SPEED,
+        r: Math.random() * 1.5 + 0.5,
+      });
+    }
+  }
+
+  function draw() {
+    if (!alive) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach(p => {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0 || p.x > canvas.width)  p.vx *= -1;
+      if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+    });
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x, dy = particles[i].y - particles[j].y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < CONNECT) {
+          ctx.strokeStyle = `rgba(88,166,255,${(1 - dist/CONNECT) * 0.4})`;
+          ctx.lineWidth = 0.7;
+          ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y); ctx.stroke();
+        }
+      }
+    }
+    particles.forEach(p => {
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(88,166,255,0.8)'; ctx.fill();
+    });
+    requestAnimationFrame(draw);
+  }
+
+  init(); draw();
+  window.addEventListener('resize', resize);
+
+  // Fade out after 5s
+  setTimeout(() => {
+    alive = false;
+    splash.classList.add('fade-out');
+    splash.addEventListener('transitionend', () => splash.remove(), { once: true });
+  }, 4500);
+})();
 </script>
 </body>
 </html>
