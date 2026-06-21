@@ -3061,6 +3061,14 @@ document.querySelectorAll('.right-tabs .tab-btn').forEach(btn => btn.addEventLis
 // ── Shared helpers ────────────────────────────────────────────────────────────
 const fmt = n => Number(n).toLocaleString();
 
+function fmtTs(ts, dateOnly) {
+  if (!ts) return '';
+  const d = new Date(ts.endsWith('Z') ? ts : ts + 'Z');
+  if (dateOnly) return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
+       + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
 function updateTokenBar(t) {
   if (!t) return;
   document.getElementById('tok-input').textContent  = fmt(t.input);
@@ -3233,19 +3241,44 @@ function setStatus(el, msg, type) {
   el.className = 'status-msg' + (type ? ' ' + type : '');
 }
 
+function renderFileTagsWithRemove(files, listEl, onRemove) {
+  listEl.innerHTML = files.map((f, i) =>
+    `<span class="file-tag" style="display:inline-flex;align-items:center;gap:4px;">
+      ${f.name}
+      <span data-idx="${i}" style="cursor:pointer;opacity:.6;font-size:13px;line-height:1;padding:0 1px" title="Remove">&times;</span>
+    </span>`
+  ).join('');
+  listEl.querySelectorAll('[data-idx]').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); onRemove(parseInt(btn.dataset.idx)); });
+  });
+}
+
 function wireDropZone(dropEl, inputEl, listEl, multi) {
-  inputEl.addEventListener('change', () => {
-    const files = Array.from(inputEl.files);
-    listEl.innerHTML = files.map(f => `<span class="file-tag">${f.name}</span>`).join('');
-    return files;
+  let fileArr = [];
+
+  function syncInput() {
+    try { const dt = new DataTransfer(); fileArr.forEach(f => dt.items.add(f)); inputEl.files = dt.files; } catch(_) {}
+    inputEl.dispatchEvent(new Event('change'));
+  }
+
+  function render() {
+    renderFileTagsWithRemove(fileArr, listEl, idx => {
+      fileArr.splice(idx, 1);
+      syncInput();
+      render();
+    });
+  }
+
+  inputEl.addEventListener('change', e => {
+    if (e.isTrusted) { fileArr = Array.from(inputEl.files); render(); }
   });
   dropEl.addEventListener('dragover', e => { e.preventDefault(); dropEl.classList.add('drag-over'); });
   dropEl.addEventListener('dragleave', () => dropEl.classList.remove('drag-over'));
   dropEl.addEventListener('drop', e => {
     e.preventDefault(); dropEl.classList.remove('drag-over');
-    const files = Array.from(e.dataTransfer.files);
-    listEl.innerHTML = files.map(f => `<span class="file-tag">${f.name}</span>`).join('');
-    try { const dt = new DataTransfer(); files.forEach(f => dt.items.add(f)); inputEl.files = dt.files; } catch(_) {}
+    fileArr = Array.from(e.dataTransfer.files);
+    syncInput();
+    render();
   });
 }
 
@@ -4851,27 +4884,31 @@ s6RunBtn.addEventListener('click', async () => {
   const pipeDrop = document.getElementById('pipe-drop-zone');
   const pipeFileList = document.getElementById('pipe-file-list');
   let pipeFiles = [];
+  function pipRenderFiles() {
+    const dropText = pipeDrop.querySelector('.dash-drop-text');
+    if (dropText) dropText.innerHTML = pipeFiles.length ? pipeFiles.length + ' file(s) selected &mdash; <b>browse</b> to change' : 'Drop scripts or <b>browse</b>';
+    renderFileTagsWithRemove(pipeFiles, pipeFileList, idx => {
+      pipeFiles.splice(idx, 1);
+      pipRenderFiles();
+      updateCostEstimate();
+    });
+    updateCostEstimate();
+  }
+
   if (pipeDrop) {
     pipeDrop.addEventListener('dragover', e => { e.preventDefault(); pipeDrop.classList.add('drag-over'); });
     pipeDrop.addEventListener('dragleave', () => pipeDrop.classList.remove('drag-over'));
     pipeDrop.addEventListener('drop', e => {
       e.preventDefault(); pipeDrop.classList.remove('drag-over');
       pipeFiles = Array.from(e.dataTransfer.files);
-      const dropText = pipeDrop.querySelector('.dash-drop-text');
-      if (dropText) dropText.innerHTML = pipeFiles.length + ' file(s) selected &mdash; <b>browse</b> to change';
-      pipeFileList.innerHTML = pipeFiles.map(f => '<span class="file-tag">' + f.name + '</span>').join('');
-      updateCostEstimate();
+      pipRenderFiles();
     });
     pipeDrop.addEventListener('click', () => {
       const inp = document.createElement('input');
       inp.type = 'file'; inp.multiple = true; inp.accept = '.md,.txt,.docx,.fountain';
       inp.onchange = () => {
         pipeFiles = Array.from(inp.files);
-        const dropText = pipeDrop.querySelector('.dash-drop-text');
-        if (dropText) dropText.innerHTML = pipeFiles.length + ' file(s) selected &mdash; <b>browse</b> to change';
-        pipeFileList.innerHTML = pipeFiles.map(f => '<span class="file-tag">' + f.name + '</span>').join('');
-        document.getElementById('pipe-cost-estimate').classList.remove('pipe-est-hidden');
-        updateCostEstimate();
+        pipRenderFiles();
       };
       inp.click();
     });
@@ -5602,7 +5639,7 @@ document.body.insertAdjacentHTML('beforeend', `
       return;
     }
     list.innerHTML = shows.map(s => {
-      const date = (s.created_at || '').slice(0, 10);
+      const date = fmtTs(s.created_at, true);
       const meta = [s.file_count ? `${s.file_count} file${s.file_count!==1?'s':''}` : '', s.stage_count ? `${s.stage_count} stage${s.stage_count!==1?'s':''}` : ''].filter(Boolean).join(' · ');
       return `<div class="lib-show-row" data-id="${s.id}" data-name="${s.name}"
         style="padding:10px 12px;margin-bottom:6px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);cursor:pointer;transition:border-color .15s,background .15s;position:relative">
@@ -5748,7 +5785,7 @@ document.body.insertAdjacentHTML('beforeend', `
         files.map(f => {
           const name = fmtBasename(f.filename);
           const folder = f.filename.includes('/') ? f.filename.split('/').slice(0,-1).join('/') + '/' : '';
-          const dateStr = f.created_at ? f.created_at.slice(0, 16).replace('T', ' ') : '';
+          const dateStr = fmtTs(f.created_at);
           return `
           <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;transition:border-color .15s,box-shadow .15s"
                onmouseover="this.style.borderColor='rgba(88,166,255,.3)';this.style.boxShadow='0 0 10px rgba(88,166,255,.07)'"
@@ -6095,7 +6132,7 @@ document.body.insertAdjacentHTML('beforeend', `
         const badge = STAGE_BADGE[row.stage] || {label: row.stage, bg: 'rgba(255,255,255,.08)', color: 'var(--text-muted)'};
         const statusColor = row.status === 'done' ? '#3fb950' : row.status === 'failed' ? '#e53e3e' : row.status === 'flagged' ? '#f59e0b' : 'var(--text-muted)';
         const statusDot = `<span style="width:6px;height:6px;border-radius:50%;background:${statusColor};display:inline-block;flex-shrink:0"></span>`;
-        const dt = row.created_at ? row.created_at.slice(0,16).replace('T',' ') : '';
+        const dt = fmtTs(row.created_at);
         return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-surface);margin-bottom:6px">
           <span style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:${badge.bg};color:${badge.color};font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;letter-spacing:.3px">${badge.label}</span>
           <div style="flex:1;min-width:0">
